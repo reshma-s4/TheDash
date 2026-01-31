@@ -2,12 +2,12 @@ import { router, useLocalSearchParams } from "expo-router";
 import { sendPasswordResetEmail } from "firebase/auth";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { auth } from "../firebaseConfig";
 

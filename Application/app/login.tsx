@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,8 +12,11 @@ import {
   View,
 } from "react-native";
 import { auth, db } from "../firebaseConfig";
+import { AuthUiContext } from "./_layout";
 
 export default function LoginScreen() {
+  const { setIsGuest } = useContext(AuthUiContext);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,17 +30,29 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
       const { user } = userCredential;
 
-      const userDocRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userDocRef);
-      const profileData = userSnap.exists() ? userSnap.data() : null;
+      setIsGuest(false);
+
+      let profileData: any = {};
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userDocRef);
+        profileData = userSnap.exists() ? userSnap.data() : {};
+      } catch (firestoreError) {
+        profileData = {};
+        console.warn("Profile fetch failed:", firestoreError);
+      }
 
       setLoading(false);
 
       router.replace({
-        pathname: "/(tabs)/dashboard",
+        pathname: "/(tabs)/the-dash",
         params: {
           userId: user.uid,
           profile: JSON.stringify(profileData ?? {}),
@@ -93,7 +108,11 @@ export default function LoginScreen() {
         onPress={handleLogin}
         disabled={loading}
       >
-        {loading ? <ActivityIndicator /> : <Text style={styles.buttonText}>Log In</Text>}
+        {loading ? (
+          <ActivityIndicator />
+        ) : (
+          <Text style={styles.buttonText}>Log In</Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={goToForgotPassword}>
@@ -105,6 +124,16 @@ export default function LoginScreen() {
         onPress={() => router.push("/create-account")}
       >
         <Text style={styles.createAccountText}>Create Account</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.guestButton}
+        onPress={() => {
+          setIsGuest(true);
+          router.replace("/(tabs)/the-dash");
+        }}
+      >
+        <Text style={styles.guestText}>Log in as Guest</Text>
       </TouchableOpacity>
     </View>
   );
@@ -173,6 +202,20 @@ const styles = StyleSheet.create({
   },
   createAccountText: {
     color: "#0a84ff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  guestButton: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "#2c2c2e",
+    borderWidth: 1,
+    borderColor: "#3a3a3c",
+  },
+  guestText: {
+    color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
   },

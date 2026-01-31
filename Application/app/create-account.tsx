@@ -62,7 +62,7 @@ const CreateAccount: React.FC = () => {
         onPress={async () => {
           const success = await handleCreateAccount();
           if (success) {
-            router.replace("/home");
+            router.replace("/(tabs)/the-dash");
           }
         }}
       >
@@ -86,33 +86,37 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 20,
-    backgroundColor: "#FFF",
+    backgroundColor: "#1c1c1e",
   },
   title: {
     fontSize: 32,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 40,
+    color: "#ffffff",
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#AAA",
-    borderRadius: 10,
-    paddingHorizontal: 15,
     height: 50,
-    marginBottom: 20,
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    marginBottom: 16,
+    backgroundColor: "#2c2c2e",
+    borderWidth: 1,
+    borderColor: "#3a3a3c",
+    color: "#ffffff",
   },
   button: {
-    backgroundColor: "black",
+    backgroundColor: "#0a84ff",
     paddingVertical: 15,
-    borderRadius: 10,
+    borderRadius: 12,
+    marginTop: 6,
   },
   buttonText: {
-    color: "white",
+    color: "#ffffff",
     fontSize: 18,
+    fontWeight: "600",
     textAlign: "center",
   },
-
   loginRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -120,11 +124,11 @@ const styles = StyleSheet.create({
   },
   loginText: {
     fontSize: 14,
-    color: "#555",
+    color: "#b0b0b3",
   },
   loginLink: {
     fontSize: 14,
-    color: "#000",
+    color: "#0a84ff",
     fontWeight: "600",
   },
 });
