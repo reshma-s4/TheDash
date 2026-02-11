@@ -14,17 +14,8 @@ import { auth } from "../../firebaseConfig";
 import { AuthUiContext } from "../_layout";
 
 export default function TabsLayout() {
-  const { isGuest, setIsGuest } = useContext(AuthUiContext);
+  const { isGuest, setIsGuest, colors } = useContext(AuthUiContext);
   const [profileOpen, setProfileOpen] = useState(false);
-
-  const icon = (
-    name: keyof typeof Ionicons.glyphMap,
-    sizeOverride?: number
-  ) => {
-    return ({ color, size }: { color: string; size: number }) => (
-      <Ionicons name={name} size={size + 4.3} color={color} />
-    );
-  };
 
   const handleProfileAction = () => {
     if (isGuest) {
@@ -49,6 +40,11 @@ export default function TabsLayout() {
     ]);
   };
 
+  const icon =
+    (name: keyof typeof Ionicons.glyphMap) =>
+    ({ color, size }: { color: string; size: number }) =>
+      <Ionicons name={name} size={size} color={color} />;
+
   return (
     <>
       <Tabs
@@ -58,9 +54,9 @@ export default function TabsLayout() {
           tabBarShowLabel: false,
 
           tabBarStyle: {
-            backgroundColor: "#1c1c1e",
-            borderTopColor: "#3a3a3c",
-            height: 70,
+            backgroundColor: colors.bg,
+            borderTopColor: colors.border,
+            height: 64,
           },
 
           tabBarItemStyle: {
@@ -71,32 +67,21 @@ export default function TabsLayout() {
             marginTop: 0,
           },
 
-          tabBarActiveTintColor: "#0a84ff",
-          tabBarInactiveTintColor: "#b0b0b3",
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.subtext,
         }}
       >
         <Tabs.Screen
           name="the-dash"
-          options={{
-            title: "The Dash",
-            tabBarIcon: icon("location"),
-          }}
+          options={{ title: "The Dash", tabBarIcon: icon("location") }}
         />
-
         <Tabs.Screen
           name="notifications"
-          options={{
-            title: "Notifications",
-            tabBarIcon: icon("notifications"),
-          }}
+          options={{ title: "Notifications", tabBarIcon: icon("notifications") }}
         />
-
         <Tabs.Screen
           name="preferences"
-          options={{
-            title: "Preferences",
-            tabBarIcon: icon("settings"),
-          }}
+          options={{ title: "Preferences", tabBarIcon: icon("settings") }}
         />
 
         <Tabs.Screen
@@ -106,12 +91,13 @@ export default function TabsLayout() {
             tabBarIcon: ({ color, size }) => (
               <Ionicons
                 name="person-circle"
-                size={size + 5}
+                size={size}
                 color={color}
                 style={{
                   transform: [
-                    { translateY: 1.3 },
-                    { translateX: -2 },
+                    { translateY: 4.5 },
+                    { translateX: -3.5 },
+                    { scale: 1.08 },
                   ],
                 }}
               />
@@ -159,19 +145,19 @@ export default function TabsLayout() {
           <Pressable
             onPress={() => {}}
             style={{
-              backgroundColor: "#2c2c2e",
+              backgroundColor: colors.card,
               borderTopLeftRadius: 18,
               borderTopRightRadius: 18,
               padding: 16,
               borderTopWidth: 1,
-              borderTopColor: "#3a3a3c",
+              borderTopColor: colors.border,
             }}
           >
-            <Text style={{ color: "#b0b0b3", fontSize: 12, marginBottom: 6 }}>
+            <Text style={{ color: colors.subtext, fontSize: 12, marginBottom: 6 }}>
               Signed in as
             </Text>
 
-            <Text style={{ color: "#ffffff", fontSize: 16, fontWeight: "600" }}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>
               {isGuest ? "Guest" : auth.currentUser?.email ?? "Unknown user"}
             </Text>
 
@@ -183,13 +169,13 @@ export default function TabsLayout() {
                 marginTop: 6,
                 paddingVertical: 12,
                 borderRadius: 12,
-                backgroundColor: "#3a3a3c",
+                backgroundColor: colors.border,
                 alignItems: "center",
               }}
             >
               <Text
                 style={{
-                  color: isGuest ? "#0a84ff" : "#ff453a",
+                  color: isGuest ? colors.primary : colors.danger,
                   fontWeight: "700",
                 }}
               >
@@ -203,11 +189,13 @@ export default function TabsLayout() {
                 marginTop: 10,
                 paddingVertical: 12,
                 borderRadius: 12,
-                backgroundColor: "#1c1c1e",
+                backgroundColor: colors.bg,
                 alignItems: "center",
+                borderWidth: 1,
+                borderColor: colors.border,
               }}
             >
-              <Text style={{ color: "#ffffff", fontWeight: "600" }}>Close</Text>
+              <Text style={{ color: colors.text, fontWeight: "600" }}>Close</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
