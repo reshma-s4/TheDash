@@ -1,5 +1,7 @@
+import * as Notifications from "expo-notifications";
 import React, { useContext, useState } from "react";
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -19,6 +21,35 @@ export default function PreferencesScreen() {
 
   const isDark = prefs.themeMode === "dark";
 
+  const requestNotifPermissionsIfNeeded = async (): Promise<boolean> => {
+    const settings = await Notifications.getPermissionsAsync();
+    if (settings.status === "granted") return true;
+
+    const req = await Notifications.requestPermissionsAsync();
+    return req.status === "granted";
+  };
+
+  const handlePing = async () => {
+    if (!prefs.notificationsEnabled) {
+      Alert.alert("Notifications are off", "Turn on Notifications in Preferences to receive alerts.");
+      return;
+    }
+
+    const granted = await requestNotifPermissionsIfNeeded();
+    if (!granted) {
+      Alert.alert("Permission denied", "Enable notifications in your phone settings to receive alerts.");
+      return;
+    }
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "You've pushed the button.",
+        body: "Ping!",
+      },
+      trigger: null,
+    });
+  };
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
@@ -37,9 +68,7 @@ export default function PreferencesScreen() {
         onPress={() => setNavModalOpen(true)}
       >
         <View>
-          <Text style={[styles.rowTitle, { color: colors.text }]}>
-            Navigation
-          </Text>
+          <Text style={[styles.rowTitle, { color: colors.text }]}>Navigation</Text>
           <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
             {prefs.navMode}
           </Text>
@@ -74,9 +103,7 @@ export default function PreferencesScreen() {
         ]}
       >
         <View>
-          <Text style={[styles.rowTitle, { color: colors.text }]}>
-            Notifications
-          </Text>
+          <Text style={[styles.rowTitle, { color: colors.text }]}>Notifications</Text>
           <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
             Enable notification options
           </Text>
@@ -143,6 +170,22 @@ export default function PreferencesScreen() {
           </View>
         </View>
       )}
+
+      <TouchableOpacity
+        style={[
+          styles.rowButton,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+        onPress={handlePing}
+      >
+        <View>
+          <Text style={[styles.rowTitle, { color: colors.text }]}>Ping!</Text>
+          <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
+            Send a test notification
+          </Text>
+        </View>
+        <Text style={[styles.chev, { color: colors.subtext }]}>›</Text>
+      </TouchableOpacity>
 
       <Modal
         transparent
@@ -237,15 +280,11 @@ type Styles = {
 };
 
 const styles = StyleSheet.create<Styles>({
-  container: { 
-    padding: 18,
-    paddingTop: 48,
-  },
+  container: { padding: 18, paddingTop: 70 },
 
   title: {
     fontSize: 26,
     fontWeight: "800",
-    marginTop: 8,
     marginBottom: 18,
   },
 

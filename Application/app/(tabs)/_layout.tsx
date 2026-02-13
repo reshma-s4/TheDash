@@ -14,13 +14,14 @@ import { auth } from "../../firebaseConfig";
 import { AuthUiContext } from "../_layout";
 
 export default function TabsLayout() {
-  const { isGuest, setIsGuest, colors } = useContext(AuthUiContext);
+  const { isGuest, setIsGuest, colors, clearNotifications } = useContext(AuthUiContext);
   const [profileOpen, setProfileOpen] = useState(false);
 
   const handleProfileAction = () => {
     if (isGuest) {
       setProfileOpen(false);
       setIsGuest(false);
+      clearNotifications();
       router.replace("/");
       return;
     }

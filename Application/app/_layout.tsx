@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
 import React, { createContext, useEffect, useMemo, useState } from "react";
@@ -62,6 +63,13 @@ export const DEFAULT_PREFS: PreferencesState = {
   themeMode: "dark",
 };
 
+export type InAppNotification = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: number;
+};
+
 export type AppUiState = {
   isGuest: boolean;
   setIsGuest: (v: boolean) => void;
@@ -74,6 +82,10 @@ export type AppUiState = {
   colors: ThemeColors;
 
   resetPrefsToDefaults: () => void;
+
+  notifications: InAppNotification[];
+  addInAppNotification: (n: Omit<InAppNotification, "id" | "createdAt">) => void;
+  clearNotifications: () => void;
 };
 
 export const AuthUiContext = createContext<AppUiState>({
@@ -88,19 +100,56 @@ export const AuthUiContext = createContext<AppUiState>({
   colors: getThemeColors("dark"),
 
   resetPrefsToDefaults: () => {},
+
+  notifications: [],
+  addInAppNotification: () => {},
+  clearNotifications: () => {},
 });
 
 const prefsKeyForUid = (uid: string) => `prefs:${uid}`;
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 export default function RootLayout() {
   const [isGuest, setIsGuest] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
-
   const [prefs, setPrefs] = useState<PreferencesState>(DEFAULT_PREFS);
+
+  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
 
   const colors = useMemo(() => getThemeColors(prefs.themeMode), [prefs.themeMode]);
 
   const resetPrefsToDefaults = () => setPrefs(DEFAULT_PREFS);
+
+  const addInAppNotification: AppUiState["addInAppNotification"] = (n) => {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setNotifications((prev) => [
+      { id, title: n.title, body: n.body, createdAt: Date.now() },
+      ...prev,
+    ]);
+  };
+
+  const clearNotifications = () => setNotifications([]);
+
+  useEffect(() => {
+    const receivedSub = Notifications.addNotificationReceivedListener((notif) => {
+      const title = notif.request.content.title ?? "Notification";
+      const body = notif.request.content.body ?? "";
+      addInAppNotification({ title, body });
+    });
+
+    return () => {
+      receivedSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -108,7 +157,10 @@ export default function RootLayout() {
 
       setUid(user?.uid ?? null);
 
-      if (!user) resetPrefsToDefaults();
+      if (!user) {
+        resetPrefsToDefaults();
+        clearNotifications();
+      }
     });
 
     return unsub;
@@ -151,6 +203,7 @@ export default function RootLayout() {
     if (isGuest) {
       setUid(null);
       resetPrefsToDefaults();
+      clearNotifications();
     }
   }, [isGuest]);
 
@@ -163,8 +216,11 @@ export default function RootLayout() {
       setPrefs,
       colors,
       resetPrefsToDefaults,
+      notifications,
+      addInAppNotification,
+      clearNotifications,
     }),
-    [isGuest, uid, prefs, colors]
+    [isGuest, uid, prefs, colors, notifications]
   );
 
   return (
