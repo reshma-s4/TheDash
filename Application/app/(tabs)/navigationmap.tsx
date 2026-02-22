@@ -54,16 +54,15 @@ export default function NavigationMap() {
 
   return (
     <View>
-      {/* Inputs */}
       <TextInput
-        placeholder="Start (e.g. 2226 or EXIT)"
+        placeholder="Start"
         value={startRoom}
         onChangeText={setStartRoom}
         style={{ backgroundColor: "white", padding: 10, borderRadius: 6, marginBottom: 10 }}
       />
 
       <TextInput
-        placeholder="Destination (e.g. 2214)"
+        placeholder="Destination"
         value={endRoom}
         onChangeText={setEndRoom}
         style={{ backgroundColor: "white", padding: 10, borderRadius: 6, marginBottom: 10 }}
