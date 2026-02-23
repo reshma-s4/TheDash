@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { Text, View, ScrollView } from "react-native";
+import { Text, View, StyleSheet } from "react-native";
 import { AuthUiContext } from "../_layout";
 import NavigationMap from "./navigationmap";
 
@@ -7,21 +7,36 @@ export default function TheDash() {
   const { colors } = useContext(AuthUiContext);
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ padding: 20 }}
-    >
-      <Text style={{ 
-        color: colors.text, 
-        fontSize: 24, 
-        fontWeight: "700", 
-        marginBottom: 20, 
-        textAlign: "center" 
-      }}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <Text
+        style={[
+          styles.title,
+          { color: colors.text }
+        ]}
+      >
         The Dash
       </Text>
 
-      <NavigationMap />
-    </ScrollView>
+      <View style={styles.mapContainer}>
+        <NavigationMap />
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  mapContainer: {
+    height: "100%",
+    width: "100%",
+  },
+});
