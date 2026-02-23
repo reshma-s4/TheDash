@@ -12,17 +12,22 @@ type Node = {
 };
 
 const nodes: Node[] = [
-  { id: "2226", x: 100, y: 10, width: 120, height: 100 },
-  { id: "2225", x: 183, y: 10, width: 90, height: 65 },
-  { id: "2224", x: 266, y: 10 },
-  { id: "2223", x: 266, y: 78 },
-  { id: "2222", x: 183, y: 78 },
-  { id: "2221", x: 100, y: 101 },
-  { id: "2226", x: 100, y: 10 },
-  { id: "2220", x: 183, y: 169 },
-  { id: "2216", x: 100, y: 169 },
-  { id: "2215", x: 183, y: 237 },
-  { id: "2214", x: 266, y: 237 },
+  { id: "Exit 1", x: 3, y: -52 },
+  { id: "2226", x: 100, y: -52 },
+  { id: "2225", x: 197, y: -52},
+  { id: "2224", x: 294, y: -52 },
+  { id: "2223", x: 294, y: 48 },
+  { id: "2222", x: 197, y: 48 },
+  { id: "2221", x: 100, y: 48 },
+  { id: "2220", x: 197, y: 177 },
+  { id: "2217A", x: 3, y: 48 },
+  { id: "2217", x: 3, y: 148 },
+  { id: "2216", x: 100, y: 177 },
+  { id: "2215", x: 197, y: 276 },
+  { id: "2214", x: 294, y: 276 },
+  { id: "2213", x: 3, y: 374 },
+  { id: "2212", x: 130, y: 402 },
+  { id: "2211", x: 294, y: 402 },
 ];
 
 const doors: { [key: string]: { x: number; y: number } } = {
@@ -54,36 +59,19 @@ export default function NavigationMap() {
 
   return (
     <View>
-      <TextInput
-        placeholder="Start"
-        value={startRoom}
-        onChangeText={setStartRoom}
-        style={{ backgroundColor: "white", padding: 10, borderRadius: 6, marginBottom: 10 }}
-      />
+  
 
-      <TextInput
-        placeholder="Destination"
-        value={endRoom}
-        onChangeText={setEndRoom}
-        style={{ backgroundColor: "white", padding: 10, borderRadius: 6, marginBottom: 10 }}
-      />
-
-      <TouchableOpacity
-        onPress={() => setNavigate(true)}
-        style={{ backgroundColor: "#4a90e2", padding: 12, borderRadius: 8 }}
-      >
-        <Text style={{ color: "white", textAlign: "center", fontWeight: "600" }}>
-          Start Navigation
-        </Text>
-      </TouchableOpacity>
-
-      {/* Map */}
+   
       <View style={{ backgroundColor: "#1a1a1a", borderRadius: 10, padding: 10, marginTop: 20 }}>
-        <Svg viewBox="0 0 400 330" width="100%" height={300}>
-          {/* Hallways */}
-          <Line x1={150} y1={142} x2={345} y2={142} stroke="#555" strokeWidth={20} />
-          <Line x1={345} y1={6} x2={345} y2={300} stroke="#555" strokeWidth={20} />
-          <Line x1={95} y1={300} x2={345} y2={300} stroke="#555" strokeWidth={20} />
+        <Svg viewBox="0 0 400 330" width="100%" height={510}>
+          
+          <Line x1={1} y1={-80} x2={500} y2={-80} stroke="#555" strokeWidth={25} />
+          <Line x1={100} y1={147} x2={460} y2={147} stroke="#555" strokeWidth={25} />
+          <Line x1={390} y1={-80} x2={390} y2={500} stroke="#555" strokeWidth={25} />
+          <Line x1={265} y1={380} x2={265} y2={500} stroke="#555" strokeWidth={25} />
+          <Line x1={100} y1={380} x2={100} y2={500} stroke="#555" strokeWidth={25} />
+          <Line x1={345} y1={300} x2={345} y2={300} stroke="#555" strokeWidth={25} />
+          <Line x1={1} y1={373} x2={500} y2={373} stroke="#555" strokeWidth={25} />
 
           
 
@@ -93,13 +81,22 @@ export default function NavigationMap() {
               <Rect
                 x={node.x - (node.id === "2226" || node.id === "2220" ? 14 : 14)}
                 y={node.y - (node.id === "2226" || node.id === "2220" ? 14 : 14)}
-                width={node.id === "2220" ? 163 : 80}
+                width={
+                  node.id === "2220" 
+                  ? 192 
+                  : node.id === "2212"
+                 ? 134
+                  : 95}
                 height={
-                  node.id === "2226"
-                  ? 87
+                  node.id === "2221"
+                  ? 126
                   : node.id === "2216"
-                 ? 133
-                 : 65
+                 ? 195
+                 : node.id === "2217"
+                 ? 224
+                 : node.id === "2213"
+                 ? 110
+                 : 97
                 }
                 fill="#918f8f"
               />
@@ -141,6 +138,28 @@ export default function NavigationMap() {
           )}
         </Svg>
       </View>
+          <TextInput
+        placeholder="Start"
+        value={startRoom}
+        onChangeText={setStartRoom}
+        style={{ backgroundColor: "white", padding: 10, borderRadius: 6, marginBottom: 10 }}
+      />
+
+      <TextInput
+        placeholder="Destination"
+        value={endRoom}
+        onChangeText={setEndRoom}
+        style={{ backgroundColor: "white", padding: 10, borderRadius: 6, marginBottom: 10 }}
+      />
+
+      <TouchableOpacity
+        onPress={() => setNavigate(true)}
+        style={{ backgroundColor: "#4a90e2", padding: 12, borderRadius: 8 }}
+      >
+        <Text style={{ color: "white", textAlign: "center", fontWeight: "600" }}>
+          Start Navigation
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
