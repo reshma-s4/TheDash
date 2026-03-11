@@ -41,8 +41,8 @@ def save_image(camera_id: str, rssi_value: int, frame: bytes) -> str:
     import subprocess, json
     try:
         result = subprocess.check_output([
-            "/home/thedash-admin/thedash/raspberrypi/.ncnn_venv/bin/python",
-            "/home/thedash-admin/thedash/raspberrypi/services/ncnn_infer.py",
+            ".ncnn_venv/bin/python",
+            "services/ncnn_infer.py",
             filepath
         ])
         people = json.loads(result)
