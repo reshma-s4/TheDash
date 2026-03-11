@@ -19,6 +19,8 @@ dist/
 # =========================
 .venv/
 venv/
+**/.venv/
+**/.ncnn_venv/
 env/
 ENV/
 
@@ -32,6 +34,7 @@ ENV/
 # direnv
 .envrc
 .direnv/
+**/.direnv/
 
 # =========================
 # IDEs / Editors
@@ -66,6 +69,7 @@ Thumbs.db
 # Firebase credentials
 # =========================
 firebase_creds/*.json
+**/firebase_creds/*.json
 
 # =========================
 # Temporary files

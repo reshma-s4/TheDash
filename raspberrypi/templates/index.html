@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="refresh" content="5">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Feed Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+    <div class="wrapper">
+        <h1>Dashboard for Viewing Camera Feed on Pi</h1>
+        {% for cam_id, img_path in cameras.items() %}
+        <div class="image-feed">
+            <h3>{{ cam_id }}</h3>
+            {% if img_path %}
+                <img src="{{ img_path }}?t={{ time_now }}" width="640" />
+            {% else %}
+                <p>No image yet</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+        <div class="link">
+            <a href="/status">View Status of All Devices</a>
+        </div>
+    </div>
+</body>
+</html>

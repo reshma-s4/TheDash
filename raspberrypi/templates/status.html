@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status Page</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="wrapper">
+        <h1>Status Page</h1>
+        <h2>Edge Device Status Overview</h2>
+        {% if cameras and cameras|length > 0 %}
+            <table border="1" cellpadding="6">
+                <tr>
+                    <th>Camera</th>
+                    <th>Status</th>
+                    <th>IP</th>
+                    <th>RSSI (dBm)</th>
+                    <th>Signal (%)</th>
+                    <th>Last Seen</th>
+                    <th>Age (s)</th>
+                </tr>
+                {% for c in cameras %}
+                <tr>
+                    <td>{{ c.camera_id }}</td>
+                    <td>
+                        {% if c.online %}✅ Online{% else %}❌ Offline{% endif %}
+                    </td>
+                    <td>{{ c.ip }}</td>
+                    <td>{{ c.rssi }}</td>
+                    <td>{{ c.signal_percent }}</td>
+                    <td>{{ c.last_seen }}</td>
+                    <td>{{ c.age_secs }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p>No status reports received yet.</p>
+        {% endif %}
+        <p>This page provides the current status of edge devices.</p>
+        <p>Refreshes every 5 seconds.</p>
+        <a href="/">Back to Dashboard</a>
+    </div>
+
+    <script>
+        setTimeout(() => location.reload(), 5000);
+    </script>
+</body>
+</html> 
