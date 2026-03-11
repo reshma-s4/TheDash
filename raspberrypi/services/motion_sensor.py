@@ -30,4 +30,4 @@ class MotionSensorService:
 
     def capture_and_save(self):
         jpg = capture_image()
-        save_image(self.camera_id, jpg)
+        save_image(self.camera_id, 0, jpg)
