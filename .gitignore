@@ -1,0 +1,75 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+env/
+ENV/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# direnv
+.envrc
+.direnv/
+
+# =========================
+# IDEs / Editors
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Raspberry Pi / Camera
+# =========================
+*.h264
+*.mp4
+*.jpg
+*.jpeg
+*.png
+*.avi
+
+# =========================
+# Firebase credentials
+# =========================
+firebase_creds/*.json
+
+# =========================
+# Temporary files
+# =========================
+tmp/
+temp/
+*.tmp
