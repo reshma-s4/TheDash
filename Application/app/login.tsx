@@ -1,6 +1,7 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import React, { useContext, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,8 +15,22 @@ import {
 import { auth, db } from "../firebaseConfig";
 import { AuthUiContext } from "./_layout";
 
+const DEVICE_ID_KEY = "deviceId";
+
+const getOrCreateDeviceId = async (): Promise<string> => {
+  const existing = await AsyncStorage.getItem(DEVICE_ID_KEY);
+  if (existing) return existing;
+
+  const created = `device-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  await AsyncStorage.setItem(DEVICE_ID_KEY, created);
+  return created;
+};
+
+const createSessionId = (): string =>
+  `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 export default function LoginScreen() {
-  const { setIsGuest } = useContext(AuthUiContext);
+  const { setIsGuest, setCurrentSessionId } = useContext(AuthUiContext);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,14 +45,26 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const { user } = userCredential;
 
       setIsGuest(false);
+
+      const deviceId = await getOrCreateDeviceId();
+      const sessionId = createSessionId();
+
+      await setDoc(
+        doc(db, "users", user.uid),
+        {
+          email: user.email ?? email,
+          activeSessionId: sessionId,
+          activeDeviceId: deviceId,
+          activeAt: Date.now(),
+        },
+        { merge: true }
+      );
+
+      setCurrentSessionId(sessionId);
 
       let profileData: any = {};
       try {
@@ -108,11 +135,7 @@ export default function LoginScreen() {
         onPress={handleLogin}
         disabled={loading}
       >
-        {loading ? (
-          <ActivityIndicator />
-        ) : (
-          <Text style={styles.buttonText}>Log In</Text>
-        )}
+        {loading ? <ActivityIndicator /> : <Text style={styles.buttonText}>Log In</Text>}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={goToForgotPassword}>
@@ -130,6 +153,7 @@ export default function LoginScreen() {
         style={styles.guestButton}
         onPress={() => {
           setIsGuest(true);
+          setCurrentSessionId(null);
           router.replace("/(tabs)/the-dash");
         }}
       >

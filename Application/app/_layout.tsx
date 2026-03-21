@@ -43,23 +43,19 @@ export const getThemeColors = (mode: ThemeMode): ThemeColors => {
 
 export type PreferencesState = {
   navMode: NavMode;
-
   notificationsEnabled: boolean;
   notifyEmergencies: boolean;
   notifyHeavyTraffic: boolean;
   notifyAccessibility: boolean;
-
   themeMode: ThemeMode;
 };
 
 export const DEFAULT_PREFS: PreferencesState = {
   navMode: "Auto",
-
   notificationsEnabled: false,
   notifyEmergencies: true,
   notifyHeavyTraffic: true,
   notifyAccessibility: true,
-
   themeMode: "dark",
 };
 
@@ -86,6 +82,9 @@ export type AppUiState = {
   notifications: InAppNotification[];
   addInAppNotification: (n: Omit<InAppNotification, "id" | "createdAt">) => void;
   clearNotifications: () => void;
+
+  currentSessionId: string | null;
+  setCurrentSessionId: (v: string | null) => void;
 };
 
 export const AuthUiContext = createContext<AppUiState>({
@@ -104,6 +103,9 @@ export const AuthUiContext = createContext<AppUiState>({
   notifications: [],
   addInAppNotification: () => {},
   clearNotifications: () => {},
+
+  currentSessionId: null,
+  setCurrentSessionId: () => {},
 });
 
 const prefsKeyForUid = (uid: string) => `prefs:${uid}`;
@@ -122,8 +124,8 @@ export default function RootLayout() {
   const [isGuest, setIsGuest] = useState(false);
   const [uid, setUid] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<PreferencesState>(DEFAULT_PREFS);
-
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   const colors = useMemo(() => getThemeColors(prefs.themeMode), [prefs.themeMode]);
 
@@ -160,6 +162,7 @@ export default function RootLayout() {
       if (!user) {
         resetPrefsToDefaults();
         clearNotifications();
+        setCurrentSessionId(null);
       }
     });
 
@@ -204,6 +207,7 @@ export default function RootLayout() {
       setUid(null);
       resetPrefsToDefaults();
       clearNotifications();
+      setCurrentSessionId(null);
     }
   }, [isGuest]);
 
@@ -219,8 +223,10 @@ export default function RootLayout() {
       notifications,
       addInAppNotification,
       clearNotifications,
+      currentSessionId,
+      setCurrentSessionId,
     }),
-    [isGuest, uid, prefs, colors, notifications]
+    [isGuest, uid, prefs, colors, notifications, currentSessionId]
   );
 
   return (

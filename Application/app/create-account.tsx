@@ -1,6 +1,8 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import React, { useState } from "react";
+import { doc, setDoc } from "firebase/firestore";
+import React, { useContext, useState } from "react";
 import {
   Alert,
   StyleSheet,
@@ -9,9 +11,26 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { auth } from "../firebaseConfig";
+import { auth, db } from "../firebaseConfig";
+import { AuthUiContext } from "./_layout";
+
+const DEVICE_ID_KEY = "deviceId";
+
+const getOrCreateDeviceId = async (): Promise<string> => {
+  const existing = await AsyncStorage.getItem(DEVICE_ID_KEY);
+  if (existing) return existing;
+
+  const created = `device-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  await AsyncStorage.setItem(DEVICE_ID_KEY, created);
+  return created;
+};
+
+const createSessionId = (): string =>
+  `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const CreateAccount: React.FC = () => {
+  const { setIsGuest, setCurrentSessionId } = useContext(AuthUiContext);
+
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
 
@@ -25,7 +44,26 @@ const CreateAccount: React.FC = () => {
     }
 
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const { user } = userCredential;
+
+      const deviceId = await getOrCreateDeviceId();
+      const sessionId = createSessionId();
+
+      await setDoc(
+        doc(db, "users", user.uid),
+        {
+          email: user.email ?? email,
+          activeSessionId: sessionId,
+          activeDeviceId: deviceId,
+          activeAt: Date.now(),
+        },
+        { merge: true }
+      );
+
+      setIsGuest(false);
+      setCurrentSessionId(sessionId);
+
       Alert.alert("Success", "Account created successfully!");
       return true;
     } catch (error: any) {

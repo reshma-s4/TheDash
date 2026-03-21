@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs, router } from "expo-router";
 import { signOut } from "firebase/auth";
-import React, { useContext, useState } from "react";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -10,18 +11,71 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { auth } from "../../firebaseConfig";
+import { auth, db } from "../../firebaseConfig";
 import { AuthUiContext } from "../_layout";
 
 export default function TabsLayout() {
-  const { isGuest, setIsGuest, colors, clearNotifications } = useContext(AuthUiContext);
+  const {
+    isGuest,
+    setIsGuest,
+    colors,
+    clearNotifications,
+    currentSessionId,
+    setCurrentSessionId,
+  } = useContext(AuthUiContext);
+
   const [profileOpen, setProfileOpen] = useState(false);
+  const forcedLogoutShownRef = useRef(false);
+
+  useEffect(() => {
+    if (isGuest) return;
+    if (!auth.currentUser?.uid) return;
+    if (!currentSessionId) return;
+
+    const unsubscribe = onSnapshot(doc(db, "users", auth.currentUser.uid), async (snap) => {
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+      const activeSessionId = data.activeSessionId;
+
+      if (activeSessionId && activeSessionId !== currentSessionId) {
+        if (forcedLogoutShownRef.current) return;
+        forcedLogoutShownRef.current = true;
+
+        clearNotifications();
+        setCurrentSessionId(null);
+
+        try {
+          await signOut(auth);
+        } catch (e) {
+          console.warn("Forced sign-out failed:", e);
+        }
+
+        Alert.alert(
+          "Signed out",
+          "This account was logged in on another device.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setIsGuest(false);
+                router.replace("/");
+              },
+            },
+          ]
+        );
+      }
+    });
+
+    return unsubscribe;
+  }, [isGuest, currentSessionId, clearNotifications, setCurrentSessionId, setIsGuest]);
 
   const handleProfileAction = () => {
     if (isGuest) {
       setProfileOpen(false);
       setIsGuest(false);
       clearNotifications();
+      setCurrentSessionId(null);
       router.replace("/");
       return;
     }
@@ -33,6 +87,26 @@ export default function TabsLayout() {
         style: "destructive",
         onPress: async () => {
           setProfileOpen(false);
+
+          try {
+            if (auth.currentUser?.uid && currentSessionId) {
+              await setDoc(
+                doc(db, "users", auth.currentUser.uid),
+                {
+                  activeSessionId: null,
+                  activeDeviceId: null,
+                  activeAt: null,
+                },
+                { merge: true }
+              );
+            }
+          } catch (e) {
+            console.warn("Failed to clear active session:", e);
+          }
+
+          clearNotifications();
+          setCurrentSessionId(null);
+
           await signOut(auth);
           setIsGuest(false);
           router.replace("/");
@@ -53,13 +127,11 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: false,
-
           tabBarStyle: {
             backgroundColor: colors.bg,
             borderTopColor: colors.border,
             height: 64,
           },
-
           tabBarItemStyle: {
             alignItems: "center",
             justifyContent: "center",
@@ -67,7 +139,6 @@ export default function TabsLayout() {
           tabBarIconStyle: {
             marginTop: 0,
           },
-
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.subtext,
         }}
