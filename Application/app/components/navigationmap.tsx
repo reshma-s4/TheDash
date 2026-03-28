@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   PanResponder,
@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../../firebaseConfig";
 // @ts-ignore
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from "react-native-svg";
 
@@ -23,6 +25,13 @@ type CameraBubble = {
   x: number;
   y: number;
   count: number;
+};
+
+type TrafficDoc = {
+  floor?: number;
+  cameraId?: string;
+  cameraID?: string;
+  count?: number;
 };
 
 const floor1Nodes: Node[] = [
@@ -73,13 +82,13 @@ const floor2Nodes: Node[] = [
   { id: "3501", x: 30, y: 330 },
 ];
 
-const floor1CameraBubbles: CameraBubble[] = [
-  { id: "cam-1", x: 65, y: 300, count: 0 },
-  { id: "cam-2", x: 145, y: 300, count: 0 },
-  { id: "cam-3", x: 225, y: 300, count: 0 },
+const defaultFloor1CameraBubbles: CameraBubble[] = [
+  { id: "floor1_cam_1", x: 95, y: 300, count: 0 },
+  { id: "floor1_cam_2", x: 231, y: 145, count: 0 },
+  { id: "floor1_cam_3", x: 205, y: 300, count: 0 },
 ];
 
-const floor2CameraBubbles: CameraBubble[] = [];
+const defaultFloor2CameraBubbles: CameraBubble[] = [];
 
 const MAP_WIDTH = 700;
 const MAP_HEIGHT = 700;
@@ -87,70 +96,216 @@ const MAP_HEIGHT = 700;
 const CONTAINER_HEIGHT = 600;
 const CONTAINER_WIDTH = 350;
 
-const MIN_X = CONTAINER_WIDTH - MAP_WIDTH;
-const MAX_X = 0;
-const MIN_Y = CONTAINER_HEIGHT - MAP_HEIGHT;
-const MAX_Y = 0;
+const MIN_SCALE = 0.85;
+const MAX_SCALE = 1;
 
 const clamp = (value: number, min: number, max: number) => {
   return Math.min(Math.max(value, min), max);
 };
 
+const getTrafficBubbleStyle = (count: number) => {
+  if (count <= 3) {
+    return {
+      radius: 34,
+      glowRadius: 44,
+      fill: "rgba(76, 175, 80, 0.28)",
+      glow: "rgba(76, 175, 80, 0.18)",
+    };
+  }
+
+  if (count <= 6) {
+    return {
+      radius: 40,
+      glowRadius: 52,
+      fill: "rgba(255, 235, 59, 0.28)",
+      glow: "rgba(255, 235, 59, 0.18)",
+    };
+  }
+
+  if (count <= 9) {
+    return {
+      radius: 46,
+      glowRadius: 60,
+      fill: "rgba(255, 152, 0, 0.30)",
+      glow: "rgba(255, 152, 0, 0.20)",
+    };
+  }
+
+  return {
+    radius: 54,
+    glowRadius: 70,
+    fill: "rgba(244, 67, 54, 0.32)",
+    glow: "rgba(244, 67, 54, 0.22)",
+  };
+};
+
+const getPanBounds = (scaleValue: number) => {
+  const scaledWidth = MAP_WIDTH * scaleValue;
+  const scaledHeight = MAP_HEIGHT * scaleValue;
+
+  return {
+    minX: Math.min(0, CONTAINER_WIDTH - scaledWidth),
+    maxX: 0,
+    minY: Math.min(0, CONTAINER_HEIGHT - scaledHeight),
+    maxY: 0,
+  };
+};
+
+const getTouchDistance = (touches: readonly any[]) => {
+  if (touches.length < 2) return 0;
+
+  const [a, b] = touches;
+  const dx = b.pageX - a.pageX;
+  const dy = b.pageY - a.pageY;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
 export default function NavigationMap() {
   const [currentFloor, setCurrentFloor] = useState<1 | 2>(1);
+  const [floor1CameraBubbles, setFloor1CameraBubbles] = useState<CameraBubble[]>(
+    defaultFloor1CameraBubbles
+  );
 
   const nodes = currentFloor === 1 ? floor1Nodes : floor2Nodes;
   const cameraBubbles =
-    currentFloor === 1 ? floor1CameraBubbles : floor2CameraBubbles;
+    currentFloor === 1 ? floor1CameraBubbles : defaultFloor2CameraBubbles;
 
-  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const lastOffset = useRef({ x: 0, y: 0 });
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(1)).current;
 
-  const resetPan = () => {
-    pan.setOffset({ x: 0, y: 0 });
-    pan.setValue({ x: 0, y: 0 });
-    lastOffset.current = { x: 0, y: 0 };
+  const currentTranslate = useRef({ x: 0, y: 0 });
+  const panStart = useRef({ x: 0, y: 0 });
+
+  const currentScale = useRef(1);
+  const pinchStartScale = useRef(1);
+  const pinchStartDistance = useRef(0);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "traffic_data"),
+      (snapshot) => {
+        const trafficDocs: TrafficDoc[] = snapshot.docs.map((doc) => doc.data());
+
+        setFloor1CameraBubbles((prev) =>
+          prev.map((bubble) => {
+            const match = trafficDocs.find((item) => {
+              const cameraKey = item.cameraId ?? item.cameraID;
+              return item.floor === 1 && cameraKey === bubble.id;
+            });
+
+            return {
+              ...bubble,
+              count: typeof match?.count === "number" ? match.count : 0,
+            };
+          })
+        );
+      },
+      (error) => {
+        console.warn("Failed to load traffic data:", error);
+      }
+    );
+
+    return unsubscribe;
+  }, []);
+
+  const resetView = () => {
+    currentTranslate.current = { x: 0, y: 0 };
+    currentScale.current = 1;
+
+    translateX.setValue(0);
+    translateY.setValue(0);
+    scale.setValue(1);
+  };
+
+  const clampCurrentPanToScale = (scaleValue: number) => {
+    const bounds = getPanBounds(scaleValue);
+
+    const clampedX = clamp(currentTranslate.current.x, bounds.minX, bounds.maxX);
+    const clampedY = clamp(currentTranslate.current.y, bounds.minY, bounds.maxY);
+
+    currentTranslate.current = { x: clampedX, y: clampedY };
+    translateX.setValue(clampedX);
+    translateY.setValue(clampedY);
   };
 
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2;
+        return (
+          Math.abs(gestureState.dx) > 2 ||
+          Math.abs(gestureState.dy) > 2 ||
+          gestureState.numberActiveTouches >= 2
+        );
       },
-      onPanResponderGrant: () => {
-        pan.setOffset({
-          x: lastOffset.current.x,
-          y: lastOffset.current.y,
-        });
-        pan.setValue({ x: 0, y: 0 });
+
+      onPanResponderGrant: (evt) => {
+        const touches = evt.nativeEvent.touches;
+
+        if (touches.length >= 2) {
+          pinchStartDistance.current = getTouchDistance(touches);
+          pinchStartScale.current = currentScale.current;
+        } else {
+          panStart.current = {
+            x: currentTranslate.current.x,
+            y: currentTranslate.current.y,
+          };
+        }
       },
-      onPanResponderMove: Animated.event(
-        [null, { dx: pan.x, dy: pan.y }],
-        { useNativeDriver: false }
-      ),
+
+      onPanResponderMove: (evt, gestureState) => {
+        const touches = evt.nativeEvent.touches;
+
+        if (touches.length >= 2) {
+          const distance = getTouchDistance(touches);
+          if (!pinchStartDistance.current) return;
+
+          let nextScale =
+            pinchStartScale.current * (distance / pinchStartDistance.current);
+
+          nextScale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
+
+          currentScale.current = nextScale;
+          scale.setValue(nextScale);
+
+          clampCurrentPanToScale(nextScale);
+          return;
+        }
+
+        const bounds = getPanBounds(currentScale.current);
+
+        const nextX = clamp(
+          panStart.current.x + gestureState.dx,
+          bounds.minX,
+          bounds.maxX
+        );
+        const nextY = clamp(
+          panStart.current.y + gestureState.dy,
+          bounds.minY,
+          bounds.maxY
+        );
+
+        currentTranslate.current = { x: nextX, y: nextY };
+        translateX.setValue(nextX);
+        translateY.setValue(nextY);
+      },
+
       onPanResponderRelease: () => {
-        let newX = lastOffset.current.x + (pan.x as any)._value;
-        let newY = lastOffset.current.y + (pan.y as any)._value;
-
-        newX = clamp(newX, MIN_X, MAX_X);
-        newY = clamp(newY, MIN_Y, MAX_Y);
-
-        lastOffset.current = { x: newX, y: newY };
-
-        pan.setOffset({ x: newX, y: newY });
-        pan.setValue({ x: 0, y: 0 });
+        pinchStartDistance.current = 0;
+        pinchStartScale.current = currentScale.current;
+        panStart.current = {
+          x: currentTranslate.current.x,
+          y: currentTranslate.current.y,
+        };
       },
+
       onPanResponderTerminate: () => {
-        let newX = lastOffset.current.x + (pan.x as any)._value;
-        let newY = lastOffset.current.y + (pan.y as any)._value;
-
-        newX = clamp(newX, MIN_X, MAX_X);
-        newY = clamp(newY, MIN_Y, MAX_Y);
-
-        lastOffset.current = { x: newX, y: newY };
-
-        pan.setOffset({ x: newX, y: newY });
-        pan.setValue({ x: 0, y: 0 });
+        pinchStartDistance.current = 0;
+        pinchStartScale.current = currentScale.current;
+        panStart.current = {
+          x: currentTranslate.current.x,
+          y: currentTranslate.current.y,
+        };
       },
     })
   ).current;
@@ -187,7 +342,7 @@ export default function NavigationMap() {
         <TouchableOpacity
           onPress={() => {
             setCurrentFloor(1);
-            resetPan();
+            resetView();
           }}
           style={{
             padding: 10,
@@ -202,7 +357,7 @@ export default function NavigationMap() {
         <TouchableOpacity
           onPress={() => {
             setCurrentFloor(2);
-            resetPan();
+            resetView();
           }}
           style={{
             padding: 10,
@@ -228,10 +383,14 @@ export default function NavigationMap() {
           style={{
             width: MAP_WIDTH,
             height: MAP_HEIGHT,
-            transform: [{ translateX: pan.x }, { translateY: pan.y }],
+            transform: [
+              { scale },
+              { translateX },
+              { translateY },
+            ],
           }}
         >
-          <Svg viewBox="0 0 400 330" width={MAP_WIDTH} height={MAP_HEIGHT}>
+          <Svg viewBox="-20 -30 420 420" width={MAP_WIDTH} height={MAP_HEIGHT}>
             {renderHallways()}
 
             {nodes.map((node) => (
@@ -312,28 +471,36 @@ export default function NavigationMap() {
               </G>
             ))}
 
-            {cameraBubbles.map((camera) => (
-              <G key={camera.id}>
-                <Circle
-                  cx={camera.x}
-                  cy={camera.y}
-                  r={42}
-                  fill="rgba(79, 195, 247, 0.28)"
-                  stroke="rgba(79, 195, 247, 0.75)"
-                  strokeWidth={2}
-                />
-                <SvgText
-                  x={camera.x}
-                  y={camera.y + 4}
-                  textAnchor="middle"
-                  fill="white"
-                  fontSize={14}
-                  fontWeight="bold"
-                >
-                  {camera.count}
-                </SvgText>
-              </G>
-            ))}
+            {cameraBubbles.map((camera) => {
+              const bubbleStyle = getTrafficBubbleStyle(camera.count);
+
+              return (
+                <G key={camera.id}>
+                  <Circle
+                    cx={camera.x}
+                    cy={camera.y}
+                    r={bubbleStyle.glowRadius}
+                    fill={bubbleStyle.glow}
+                  />
+                  <Circle
+                    cx={camera.x}
+                    cy={camera.y}
+                    r={bubbleStyle.radius}
+                    fill={bubbleStyle.fill}
+                  />
+                  <SvgText
+                    x={camera.x}
+                    y={camera.y + 5}
+                    textAnchor="middle"
+                    fill="white"
+                    fontSize={13}
+                    fontWeight="bold"
+                  >
+                    {camera.count}
+                  </SvgText>
+                </G>
+              );
+            })}
           </Svg>
         </Animated.View>
       </View>
