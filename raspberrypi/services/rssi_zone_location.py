@@ -117,7 +117,7 @@ def get_subzone_occupancy(cam_id):
             occupancy[subzone] += 1
             
     return occupancy
-
+        
 # Testing function
 def main():
     while True:
