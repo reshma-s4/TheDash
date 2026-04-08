@@ -1,7 +1,5 @@
-import * as Notifications from "expo-notifications";
 import React, { useContext, useState } from "react";
 import {
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -12,8 +10,10 @@ import {
   TouchableOpacity,
   View,
   ViewStyle,
+  Alert,
 } from "react-native";
 import { AuthUiContext, NavMode } from "../_layout";
+import * as Notifications from "expo-notifications";
 
 export default function PreferencesScreen() {
   const { prefs, setPrefs, colors } = useContext(AuthUiContext);
@@ -31,20 +31,26 @@ export default function PreferencesScreen() {
 
   const handlePing = async () => {
     if (!prefs.notificationsEnabled) {
-      Alert.alert("Notifications are off", "Turn on Notifications in Preferences to receive alerts.");
+      Alert.alert(
+        "Notifications are off",
+        "Turn on Notifications in Preferences to receive alerts."
+      );
       return;
     }
 
     const granted = await requestNotifPermissionsIfNeeded();
     if (!granted) {
-      Alert.alert("Permission denied", "Enable notifications in your phone settings to receive alerts.");
+      Alert.alert(
+        "Permission denied",
+        "Enable notifications in your phone settings to receive alerts."
+      );
       return;
     }
 
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: "You've pushed the button.",
-        body: "Ping!",
+        title: "You've pushed the button",
+        body: "Ping received.",
       },
       trigger: null,
     });
@@ -103,7 +109,9 @@ export default function PreferencesScreen() {
         ]}
       >
         <View>
-          <Text style={[styles.rowTitle, { color: colors.text }]}>Notifications</Text>
+          <Text style={[styles.rowTitle, { color: colors.text }]}>
+            Notifications
+          </Text>
           <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
             Enable notification options
           </Text>
@@ -171,6 +179,66 @@ export default function PreferencesScreen() {
         </View>
       )}
 
+      <View
+        style={[
+          styles.row,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <View>
+          <Text style={[styles.rowTitle, { color: colors.text }]}>
+            Admin Settings
+          </Text>
+          <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
+            Show admin-only controls
+          </Text>
+        </View>
+        <Switch
+          value={prefs.adminSettingsOpen}
+          onValueChange={(v) =>
+            setPrefs((p) => ({ ...p, adminSettingsOpen: v }))
+          }
+        />
+      </View>
+
+      {prefs.adminSettingsOpen && (
+        <View style={[styles.dropdown, { borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.rowSmall,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.rowTitleSmall, { color: colors.text }]}>
+              Show Nodes
+            </Text>
+            <Switch
+              value={prefs.showNodes}
+              onValueChange={(v) =>
+                setPrefs((p) => ({ ...p, showNodes: v }))
+              }
+            />
+          </View>
+
+          <View
+            style={[
+              styles.rowSmall,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.rowTitleSmall, { color: colors.text }]}>
+              Show Cams
+            </Text>
+            <Switch
+              value={prefs.showCams}
+              onValueChange={(v) =>
+                setPrefs((p) => ({ ...p, showCams: v }))
+              }
+            />
+          </View>
+        </View>
+      )}
+
       <TouchableOpacity
         style={[
           styles.rowButton,
@@ -179,7 +247,7 @@ export default function PreferencesScreen() {
         onPress={handlePing}
       >
         <View>
-          <Text style={[styles.rowTitle, { color: colors.text }]}>Ping!</Text>
+          <Text style={[styles.rowTitle, { color: colors.text }]}>Ping</Text>
           <Text style={[styles.rowSubtitle, { color: colors.subtext }]}>
             Send a test notification
           </Text>
@@ -241,7 +309,10 @@ export default function PreferencesScreen() {
               onPress={() => setNavModalOpen(false)}
               style={[
                 styles.closeButton,
-                { backgroundColor: colors.bg, borderColor: colors.border },
+                {
+                  backgroundColor: colors.bg,
+                  borderColor: colors.border,
+                },
               ]}
             >
               <Text style={[styles.closeButtonText, { color: colors.text }]}>

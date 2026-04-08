@@ -48,6 +48,9 @@ export type PreferencesState = {
   notifyHeavyTraffic: boolean;
   notifyAccessibility: boolean;
   themeMode: ThemeMode;
+  adminSettingsOpen: boolean;
+  showNodes: boolean;
+  showCams: boolean;
 };
 
 export const DEFAULT_PREFS: PreferencesState = {
@@ -57,6 +60,9 @@ export const DEFAULT_PREFS: PreferencesState = {
   notifyHeavyTraffic: true,
   notifyAccessibility: true,
   themeMode: "dark",
+  adminSettingsOpen: false,
+  showNodes: false,
+  showCams: false,
 };
 
 export type InAppNotification = {

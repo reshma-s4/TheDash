@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Animated,
   PanResponder,
@@ -7,10 +7,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
+import { AuthUiContext } from "../_layout";
 // @ts-ignore
-import Svg, { Circle, G, Line, Rect, Text as SvgText } from "react-native-svg";
+import Svg, {
+  Circle,
+  G,
+  Line,
+  Polygon,
+  Rect,
+  Text as SvgText,
+} from "react-native-svg";
 
 type Node = {
   id: string;
@@ -32,6 +40,23 @@ type TrafficDoc = {
   cameraId?: string;
   cameraID?: string;
   count?: number;
+};
+
+type CameraMarker = {
+  id: string;
+  x: number;
+  y: number;
+  angle: number;
+  latitude: number;
+  longitude: number;
+};
+
+type AdminNodeMarker = {
+  id: string;
+  x: number;
+  y: number;
+  latitude: number;
+  longitude: number;
 };
 
 const floor1Nodes: Node[] = [
@@ -83,12 +108,81 @@ const floor2Nodes: Node[] = [
 ];
 
 const defaultFloor1CameraBubbles: CameraBubble[] = [
-  { id: "floor1_cam_1", x: 95, y: 300, count: 0 },
-  { id: "floor1_cam_2", x: 231, y: 145, count: 0 },
-  { id: "floor1_cam_3", x: 205, y: 300, count: 0 },
+  { id: "floor1_cam_1", x: 138, y: 220, count: 0 },
+  { id: "floor1_cam_2", x: 231, y: 108, count: 0 },
+  { id: "floor1_cam_3", x: 231, y: 300, count: 0 },
 ];
 
 const defaultFloor2CameraBubbles: CameraBubble[] = [];
+
+const floor1CameraMarkers: CameraMarker[] = [
+  {
+    id: "C1",
+    x: 231,
+    y: 200,
+    angle: -90,
+    latitude: 34.24144,
+    longitude: -118.52907,
+  },
+  {
+    id: "C2",
+    x: 231,
+    y: 200,
+    angle: 90,
+    latitude: 34.24144,
+    longitude: -118.52907,
+  },
+  {
+    id: "C3",
+    x: 140,
+    y: 185,
+    angle: 45,
+    latitude: 34.24146,
+    longitude: -118.52927,
+  },
+];
+
+const floor2CameraMarkers: CameraMarker[] = [];
+
+const floor1AdminNodes: AdminNodeMarker[] = [
+  {
+    id: "A",
+    x: 231,
+    y: -15,
+    latitude: 34.24166,
+    longitude: -118.52924,
+  },
+  {
+    id: "B",
+    x: 231,
+    y: 90,
+    latitude: 34.24155,
+    longitude: -118.52909,
+  },
+  {
+    id: "C",
+    x: 231,
+    y: 165,
+    latitude: 34.24147,
+    longitude: -118.5292,
+  },
+  {
+    id: "D",
+    x: 231,
+    y: 300,
+    latitude: 34.24117,
+    longitude: -118.52927,
+  },
+  {
+    id: "E",
+    x: 154,
+    y: 100,
+    latitude: 34.24149,
+    longitude: -118.52914,
+  },
+];
+
+const floor2AdminNodes: AdminNodeMarker[] = [];
 
 const MAP_WIDTH = 700;
 const MAP_HEIGHT = 700;
@@ -160,7 +254,41 @@ const getTouchDistance = (touches: readonly any[]) => {
   return Math.sqrt(dx * dx + dy * dy);
 };
 
+const getArrowPoints = (
+  x: number,
+  y: number,
+  angleDegrees: number,
+  length = 18,
+  headLength = 8,
+  headWidth = 6
+) => {
+  const angle = (angleDegrees * Math.PI) / 180;
+  const tipX = x + Math.cos(angle) * length;
+  const tipY = y + Math.sin(angle) * length;
+
+  const baseX = x + Math.cos(angle) * (length - headLength);
+  const baseY = y + Math.sin(angle) * (length - headLength);
+
+  const perpAngle = angle + Math.PI / 2;
+
+  const leftX = baseX + Math.cos(perpAngle) * headWidth;
+  const leftY = baseY + Math.sin(perpAngle) * headWidth;
+
+  const rightX = baseX - Math.cos(perpAngle) * headWidth;
+  const rightY = baseY - Math.sin(perpAngle) * headWidth;
+
+  return {
+    tipX,
+    tipY,
+    baseX,
+    baseY,
+    points: `${tipX},${tipY} ${leftX},${leftY} ${rightX},${rightY}`,
+  };
+};
+
 export default function NavigationMap() {
+  const { prefs } = useContext(AuthUiContext);
+
   const [currentFloor, setCurrentFloor] = useState<1 | 2>(1);
   const [floor1CameraBubbles, setFloor1CameraBubbles] = useState<CameraBubble[]>(
     defaultFloor1CameraBubbles
@@ -169,6 +297,10 @@ export default function NavigationMap() {
   const nodes = currentFloor === 1 ? floor1Nodes : floor2Nodes;
   const cameraBubbles =
     currentFloor === 1 ? floor1CameraBubbles : defaultFloor2CameraBubbles;
+  const cameraMarkers =
+    currentFloor === 1 ? floor1CameraMarkers : floor2CameraMarkers;
+  const adminNodes =
+    currentFloor === 1 ? floor1AdminNodes : floor2AdminNodes;
 
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -182,23 +314,31 @@ export default function NavigationMap() {
   const pinchStartDistance = useRef(0);
 
   useEffect(() => {
+    const trafficQuery = query(collection(db, "traffic_data"));
+
     const unsubscribe = onSnapshot(
-      collection(db, "traffic_data"),
+      trafficQuery,
       (snapshot) => {
-        const trafficDocs: TrafficDoc[] = snapshot.docs.map((doc) => doc.data());
+        const nextCounts: Record<string, number> = {};
+
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as TrafficDoc;
+          const cameraKey = data.cameraId ?? data.cameraID;
+
+          if (
+            Number(data.floor) === 1 &&
+            cameraKey &&
+            typeof data.count === "number"
+          ) {
+            nextCounts[cameraKey] = data.count;
+          }
+        });
 
         setFloor1CameraBubbles((prev) =>
-          prev.map((bubble) => {
-            const match = trafficDocs.find((item) => {
-              const cameraKey = item.cameraId ?? item.cameraID;
-              return item.floor === 1 && cameraKey === bubble.id;
-            });
-
-            return {
-              ...bubble,
-              count: typeof match?.count === "number" ? match.count : 0,
-            };
-          })
+          prev.map((bubble) => ({
+            ...bubble,
+            count: nextCounts[bubble.id] ?? 0,
+          }))
         );
       },
       (error) => {
@@ -383,11 +523,7 @@ export default function NavigationMap() {
           style={{
             width: MAP_WIDTH,
             height: MAP_HEIGHT,
-            transform: [
-              { scale },
-              { translateX },
-              { translateY },
-            ],
+            transform: [{ scale }, { translateX }, { translateY }],
           }}
         >
           <Svg viewBox="-20 -30 420 420" width={MAP_WIDTH} height={MAP_HEIGHT}>
@@ -470,6 +606,54 @@ export default function NavigationMap() {
                 </SvgText>
               </G>
             ))}
+
+            {prefs.showCams &&
+              cameraMarkers.map((camera) => {
+                const arrow = getArrowPoints(camera.x, camera.y, camera.angle);
+
+                return (
+                  <G key={camera.id}>
+                    <Circle cx={camera.x} cy={camera.y} r={7} fill="#7dd3fc" />
+                    <Line
+                      x1={camera.x}
+                      y1={camera.y}
+                      x2={arrow.baseX}
+                      y2={arrow.baseY}
+                      stroke="#7dd3fc"
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                    />
+                    <Polygon points={arrow.points} fill="#7dd3fc" />
+                    <SvgText
+                      x={camera.x}
+                      y={camera.y - 12}
+                      textAnchor="middle"
+                      fill="#7dd3fc"
+                      fontSize={10}
+                      fontWeight="bold"
+                    >
+                      {camera.id}
+                    </SvgText>
+                  </G>
+                );
+              })}
+
+            {prefs.showNodes &&
+              adminNodes.map((node) => (
+                <G key={node.id}>
+                  <Circle cx={node.x} cy={node.y} r={6} fill="#c084fc" />
+                  <SvgText
+                    x={node.x}
+                    y={node.y - 10}
+                    textAnchor="middle"
+                    fill="#c084fc"
+                    fontSize={11}
+                    fontWeight="bold"
+                  >
+                    {node.id}
+                  </SvgText>
+                </G>
+              ))}
 
             {cameraBubbles.map((camera) => {
               const bubbleStyle = getTrafficBubbleStyle(camera.count);
