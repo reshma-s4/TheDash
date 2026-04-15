@@ -4,9 +4,8 @@ import { AuthUiContext } from "../_layout";
 import NavigationMap from "../components/navigationmap";
 import * as Location from "expo-location";
 import { useEffect } from "react";
-import { doc, setDoc, serverTimestamp, GeoPoint } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { db } from "../../firebaseConfig";
+import { getDatabase, ref, set, serverTimestamp } from "firebase/database";
 
 export default function TheDash() {
   const { colors } = useContext(AuthUiContext);
@@ -36,14 +35,18 @@ export default function TheDash() {
             }
 
             try {
-              await setDoc(
-                doc(db, "userLocation", user.uid),
-                { latitude, longitude, altitude, accuracy, updatedAt: serverTimestamp() },
-                { merge: true }
-              );
+              const db = getDatabase();
+              const locationRef = ref(db, `userLocation/${user.uid}`);
+              await set(locationRef, {
+                latitude,
+                longitude,
+                altitude,
+                accuracy,
+                updatedAt: serverTimestamp(),
+              });
               console.log("Location saved:", latitude, longitude);
             } catch (err) {
-              console.error("Firestore write failed:", err);
+              console.error("Realtime Database write failed:", err);
             }
           }
         );
@@ -59,15 +62,9 @@ export default function TheDash() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <Text
-        style={[
-          styles.title,
-          { color: colors.text }
-        ]}
-      >
+      <Text style={[styles.title, { color: colors.text }]}>
         The Dash
       </Text>
-
       <View style={styles.mapContainer}>
         <NavigationMap />
       </View>
