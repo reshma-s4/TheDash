@@ -7,7 +7,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+} from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import { AuthUiContext } from "../_layout";
 // @ts-ignore
@@ -57,6 +62,11 @@ type AdminNodeMarker = {
   y: number;
   latitude: number;
   longitude: number;
+};
+
+type MapConfigDoc<T> = {
+  floor?: number;
+  items?: T[];
 };
 
 const floor1Nodes: Node[] = [
@@ -115,74 +125,10 @@ const defaultFloor1CameraBubbles: CameraBubble[] = [
 
 const defaultFloor2CameraBubbles: CameraBubble[] = [];
 
-const floor1CameraMarkers: CameraMarker[] = [
-  {
-    id: "C1",
-    x: 231,
-    y: 200,
-    angle: -90,
-    latitude: 34.24144,
-    longitude: -118.52907,
-  },
-  {
-    id: "C2",
-    x: 231,
-    y: 200,
-    angle: 90,
-    latitude: 34.24144,
-    longitude: -118.52907,
-  },
-  {
-    id: "C3",
-    x: 140,
-    y: 185,
-    angle: 45,
-    latitude: 34.24146,
-    longitude: -118.52927,
-  },
-];
-
-const floor2CameraMarkers: CameraMarker[] = [];
-
-const floor1AdminNodes: AdminNodeMarker[] = [
-  {
-    id: "A",
-    x: 231,
-    y: -15,
-    latitude: 34.24166,
-    longitude: -118.52924,
-  },
-  {
-    id: "B",
-    x: 231,
-    y: 90,
-    latitude: 34.24155,
-    longitude: -118.52909,
-  },
-  {
-    id: "C",
-    x: 231,
-    y: 165,
-    latitude: 34.24147,
-    longitude: -118.5292,
-  },
-  {
-    id: "D",
-    x: 231,
-    y: 300,
-    latitude: 34.24117,
-    longitude: -118.52927,
-  },
-  {
-    id: "E",
-    x: 154,
-    y: 100,
-    latitude: 34.24149,
-    longitude: -118.52914,
-  },
-];
-
-const floor2AdminNodes: AdminNodeMarker[] = [];
+const defaultFloor1CameraMarkers: CameraMarker[] = [];
+const defaultFloor2CameraMarkers: CameraMarker[] = [];
+const defaultFloor1AdminNodes: AdminNodeMarker[] = [];
+const defaultFloor2AdminNodes: AdminNodeMarker[] = [];
 
 const MAP_WIDTH = 700;
 const MAP_HEIGHT = 700;
@@ -294,6 +240,19 @@ export default function NavigationMap() {
     defaultFloor1CameraBubbles
   );
 
+  const [floor1CameraMarkers, setFloor1CameraMarkers] = useState<CameraMarker[]>(
+    defaultFloor1CameraMarkers
+  );
+  const [floor2CameraMarkers, setFloor2CameraMarkers] = useState<CameraMarker[]>(
+    defaultFloor2CameraMarkers
+  );
+  const [floor1AdminNodes, setFloor1AdminNodes] = useState<AdminNodeMarker[]>(
+    defaultFloor1AdminNodes
+  );
+  const [floor2AdminNodes, setFloor2AdminNodes] = useState<AdminNodeMarker[]>(
+    defaultFloor2AdminNodes
+  );
+
   const nodes = currentFloor === 1 ? floor1Nodes : floor2Nodes;
   const cameraBubbles =
     currentFloor === 1 ? floor1CameraBubbles : defaultFloor2CameraBubbles;
@@ -347,6 +306,59 @@ export default function NavigationMap() {
     );
 
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubFloor1Cameras = onSnapshot(
+      doc(db, "map_config", "floor1_cameras"),
+      (snap) => {
+        const data = snap.data() as MapConfigDoc<CameraMarker> | undefined;
+        setFloor1CameraMarkers(Array.isArray(data?.items) ? data.items : []);
+      },
+      (error) => {
+        console.warn("Failed to load floor1 cameras:", error);
+      }
+    );
+
+    const unsubFloor2Cameras = onSnapshot(
+      doc(db, "map_config", "floor2_cameras"),
+      (snap) => {
+        const data = snap.data() as MapConfigDoc<CameraMarker> | undefined;
+        setFloor2CameraMarkers(Array.isArray(data?.items) ? data.items : []);
+      },
+      (error) => {
+        console.warn("Failed to load floor2 cameras:", error);
+      }
+    );
+
+    const unsubFloor1Nodes = onSnapshot(
+      doc(db, "map_config", "floor1_nodes"),
+      (snap) => {
+        const data = snap.data() as MapConfigDoc<AdminNodeMarker> | undefined;
+        setFloor1AdminNodes(Array.isArray(data?.items) ? data.items : []);
+      },
+      (error) => {
+        console.warn("Failed to load floor1 nodes:", error);
+      }
+    );
+
+    const unsubFloor2Nodes = onSnapshot(
+      doc(db, "map_config", "floor2_nodes"),
+      (snap) => {
+        const data = snap.data() as MapConfigDoc<AdminNodeMarker> | undefined;
+        setFloor2AdminNodes(Array.isArray(data?.items) ? data.items : []);
+      },
+      (error) => {
+        console.warn("Failed to load floor2 nodes:", error);
+      }
+    );
+
+    return () => {
+      unsubFloor1Cameras();
+      unsubFloor2Cameras();
+      unsubFloor1Nodes();
+      unsubFloor2Nodes();
+    };
   }, []);
 
   const resetView = () => {
