@@ -1,5 +1,6 @@
 import React, { useContext, useState } from "react";
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -10,10 +11,9 @@ import {
   TouchableOpacity,
   View,
   ViewStyle,
-  Alert,
 } from "react-native";
-import { AuthUiContext, NavMode } from "../_layout";
 import * as Notifications from "expo-notifications";
+import { AuthUiContext, NavMode } from "../_layout";
 
 export default function PreferencesScreen() {
   const { prefs, setPrefs, colors } = useContext(AuthUiContext);
@@ -196,7 +196,14 @@ export default function PreferencesScreen() {
         <Switch
           value={prefs.adminSettingsOpen}
           onValueChange={(v) =>
-            setPrefs((p) => ({ ...p, adminSettingsOpen: v }))
+            setPrefs((p) => ({
+              ...p,
+              adminSettingsOpen: v,
+              showNodes: v ? p.showNodes : false,
+              showCams: v ? p.showCams : false,
+              enableFloorSwitching: v ? p.enableFloorSwitching : false,
+              showLocationData: v ? p.showLocationData : false,
+            }))
           }
         />
       </View>
@@ -233,6 +240,40 @@ export default function PreferencesScreen() {
               value={prefs.showCams}
               onValueChange={(v) =>
                 setPrefs((p) => ({ ...p, showCams: v }))
+              }
+            />
+          </View>
+
+          <View
+            style={[
+              styles.rowSmall,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.rowTitleSmall, { color: colors.text }]}>
+              Activate Floor Switching
+            </Text>
+            <Switch
+              value={prefs.enableFloorSwitching}
+              onValueChange={(v) =>
+                setPrefs((p) => ({ ...p, enableFloorSwitching: v }))
+              }
+            />
+          </View>
+
+          <View
+            style={[
+              styles.rowSmall,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.rowTitleSmall, { color: colors.text }]}>
+              Show Location Data
+            </Text>
+            <Switch
+              value={prefs.showLocationData}
+              onValueChange={(v) =>
+                setPrefs((p) => ({ ...p, showLocationData: v }))
               }
             />
           </View>

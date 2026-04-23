@@ -43,26 +43,40 @@ export const getThemeColors = (mode: ThemeMode): ThemeColors => {
 
 export type PreferencesState = {
   navMode: NavMode;
+
   notificationsEnabled: boolean;
   notifyEmergencies: boolean;
   notifyHeavyTraffic: boolean;
   notifyAccessibility: boolean;
+
   themeMode: ThemeMode;
+
   adminSettingsOpen: boolean;
   showNodes: boolean;
   showCams: boolean;
+  enableFloorSwitching: boolean;
+
+  locationPermissionGranted: boolean;
+  showLocationData: boolean;
 };
 
 export const DEFAULT_PREFS: PreferencesState = {
   navMode: "Auto",
+
   notificationsEnabled: false,
   notifyEmergencies: true,
   notifyHeavyTraffic: true,
   notifyAccessibility: true,
+
   themeMode: "dark",
+
   adminSettingsOpen: false,
   showNodes: false,
   showCams: false,
+  enableFloorSwitching: false,
+
+  locationPermissionGranted: false,
+  showLocationData: false,
 };
 
 export type InAppNotification = {

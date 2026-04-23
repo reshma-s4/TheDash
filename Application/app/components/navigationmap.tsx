@@ -7,12 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import {
-  collection,
-  doc,
-  onSnapshot,
-  query,
-} from "firebase/firestore";
+import { collection, doc, onSnapshot, query } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import { AuthUiContext } from "../_layout";
 // @ts-ignore
@@ -232,8 +227,19 @@ const getArrowPoints = (
   };
 };
 
+const getDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) => {
+  const dx = lat1 - lat2;
+  const dy = lon1 - lon2;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
 export default function NavigationMap() {
-  const { prefs } = useContext(AuthUiContext);
+  const { prefs, setPrefs, isGuest } = useContext(AuthUiContext);
 
   const [currentFloor, setCurrentFloor] = useState<1 | 2>(1);
   const [floor1CameraBubbles, setFloor1CameraBubbles] = useState<CameraBubble[]>(
@@ -252,6 +258,9 @@ export default function NavigationMap() {
   const [floor2AdminNodes, setFloor2AdminNodes] = useState<AdminNodeMarker[]>(
     defaultFloor2AdminNodes
   );
+
+  const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
+  const [nearestNode, setNearestNode] = useState<AdminNodeMarker | null>(null);
 
   const nodes = currentFloor === 1 ? floor1Nodes : floor2Nodes;
   const cameraBubbles =
@@ -360,6 +369,85 @@ export default function NavigationMap() {
       unsubFloor2Nodes();
     };
   }, []);
+
+  useEffect(() => {
+    if (!prefs.enableFloorSwitching && currentFloor === 2) {
+      setCurrentFloor(1);
+      resetView();
+    }
+  }, [prefs.enableFloorSwitching, currentFloor]);
+
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | undefined;
+
+    const startLocation = async () => {
+      let granted = prefs.locationPermissionGranted;
+
+      if (!granted || isGuest) {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        granted = status === "granted";
+
+        if (!isGuest) {
+          setPrefs((p) => ({
+            ...p,
+            locationPermissionGranted: granted,
+          }));
+        }
+      }
+
+      if (!granted) return;
+
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 3000,
+          distanceInterval: 1,
+        },
+        (loc) => {
+          setUserLocation(loc);
+        }
+      );
+    };
+
+    startLocation();
+
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!userLocation || adminNodes.length === 0) {
+      setNearestNode(null);
+      return;
+    }
+
+    const { latitude, longitude } = userLocation.coords;
+
+    let closest = adminNodes[0];
+    let minDist = getDistance(
+      latitude,
+      longitude,
+      closest.latitude,
+      closest.longitude
+    );
+
+    adminNodes.forEach((node) => {
+      const d = getDistance(
+        latitude,
+        longitude,
+        node.latitude,
+        node.longitude
+      );
+
+      if (d < minDist) {
+        minDist = d;
+        closest = node;
+      }
+    });
+
+    setNearestNode(closest);
+  }, [userLocation, adminNodes]);
 
   const resetView = () => {
     currentTranslate.current = { x: 0, y: 0 };
@@ -507,15 +595,22 @@ export default function NavigationMap() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          disabled={!prefs.enableFloorSwitching}
           onPress={() => {
+            if (!prefs.enableFloorSwitching) return;
             setCurrentFloor(2);
             resetView();
           }}
           style={{
             padding: 10,
             margin: 5,
-            backgroundColor: currentFloor === 2 ? "#4CAF50" : "#444",
             borderRadius: 8,
+            backgroundColor: !prefs.enableFloorSwitching
+              ? "#2a2a2a"
+              : currentFloor === 2
+              ? "#4CAF50"
+              : "#444",
+            opacity: prefs.enableFloorSwitching ? 1 : 0.5,
           }}
         >
           <Text style={{ color: "white" }}>Floor 2</Text>
@@ -528,8 +623,29 @@ export default function NavigationMap() {
           borderRadius: 10,
           height: CONTAINER_HEIGHT,
           overflow: "hidden",
+          position: "relative",
         }}
       >
+        {prefs.showLocationData && userLocation && (
+          <View
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              zIndex: 20,
+              backgroundColor: "rgba(0,0,0,0.55)",
+              paddingHorizontal: 8,
+              paddingVertical: 6,
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: "white", fontSize: 12 }}>
+              {userLocation.coords.latitude.toFixed(5)},{" "}
+              {userLocation.coords.longitude.toFixed(5)}
+            </Text>
+          </View>
+        )}
+
         <Animated.View
           {...panResponder.panHandlers}
           style={{
@@ -666,6 +782,23 @@ export default function NavigationMap() {
                   </SvgText>
                 </G>
               ))}
+
+            {nearestNode && (
+              <G>
+                <Circle
+                  cx={nearestNode.x}
+                  cy={nearestNode.y}
+                  r={16}
+                  fill="rgba(59,130,246,0.35)"
+                />
+                <Circle
+                  cx={nearestNode.x}
+                  cy={nearestNode.y}
+                  r={8}
+                  fill="#3b82f6"
+                />
+              </G>
+            )}
 
             {cameraBubbles.map((camera) => {
               const bubbleStyle = getTrafficBubbleStyle(camera.count);
