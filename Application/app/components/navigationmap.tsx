@@ -113,9 +113,9 @@ const floor2Nodes: Node[] = [
 ];
 
 const defaultFloor1CameraBubbles: CameraBubble[] = [
-  { id: "floor1_cam_1", x: 231, y: 108, count: 0 },
-  { id: "floor1_cam_2", x: 231, y: 300, count: 0 },
-  { id: "floor1_cam_3", x: 138, y: 220, count: 0 },
+  { id: "cam1", x: 231, y: 108, count: 0 },
+  { id: "cam2", x: 231, y: 300, count: 0 },
+  { id: "pi_cam", x: 138, y: 220, count: 0 },
 ];
 
 const defaultFloor2CameraBubbles: CameraBubble[] = [];
@@ -282,7 +282,7 @@ export default function NavigationMap() {
   const pinchStartDistance = useRef(0);
 
   useEffect(() => {
-    const trafficQuery = query(collection(db, "traffic_data"));
+    const trafficQuery = query(collection(db, "pi_data"));
 
     const unsubscribe = onSnapshot(
       trafficQuery,
