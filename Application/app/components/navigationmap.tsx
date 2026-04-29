@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -16,9 +17,12 @@ import Svg, {
   G,
   Line,
   Polygon,
+  Polyline,
   Rect,
   Text as SvgText,
 } from "react-native-svg";
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type Node = {
   id: string;
@@ -26,14 +30,6 @@ type Node = {
   y: number;
   width?: number;
   height?: number;
-};
-
-type Edge = { from: string; to: string };
-
-type userRoute = {
-  origin: Node | null;
-  destination: Node | null;
-  path: Node[];
 };
 
 type CameraBubble = {
@@ -72,13 +68,25 @@ type MapConfigDoc<T> = {
   items?: T[];
 };
 
-const floorNodes: Node[] = [
+type RouteEdge = {
+  from: string;
+  to: string;
+};
+
+const ROUTE_EDGES: RouteEdge[] = [
+  { from: "A", to: "B" },
+  { from: "B", to: "C" },
+  { from: "C", to: "D" },
+  { from: "B", to: "E" },
+];
+
+const floor1Nodes: Node[] = [
   { id: "2226", x: 82, y: 10 },
   { id: "2225", x: 159, y: 10 },
   { id: "2224", x: 211, y: 10 },
   { id: "2223", x: 211, y: 62 },
   { id: "2222", x: 179, y: 62 },
-  { id: "EXIT 1", x: 30, y: 10 },
+  { id: "STAIRS", x: 30, y: 10 },
   { id: "2217A", x: 30, y: 62 },
   { id: "2217", x: 30, y: 114 },
   { id: "2221", x: 102, y: 62 },
@@ -89,11 +97,12 @@ const floorNodes: Node[] = [
   { id: "2211", x: 179, y: 205 },
   { id: "2210", x: 82, y: 248 },
   { id: "2207", x: 260, y: 196 },
-  { id: "EXIT 2", x: 262, y: 330 },
+  { id: "ELEVATOR", x: 262, y: 330 },
   { id: "2204", x: 82, y: 282 },
   { id: "2203", x: 146, y: 330 },
   { id: "2202", x: 30, y: 248 },
   { id: "2201", x: 30, y: 330 },
+  { id: "EXIT", x: 256, y: 120 },
 ];
 
 const floor2Nodes: Node[] = [
@@ -119,79 +128,6 @@ const floor2Nodes: Node[] = [
   { id: "3502", x: 30, y: 248 },
   { id: "3501", x: 30, y: 330 },
 ];
-
-
-const floorHallwayNodes: Node[] = [
-  { id: "HALLWAY_EXIT1", x: 30, y: -20 },
-  { id: "HALLWAY_2226", x: 82, y: -20 },
-  { id: "HALLWAY_2225", x: 159, y: -20 },
-  { id: "HALLWAY_2224", x: 211, y: -20 },
-  { id: "HALLWAY_2220", x: 231, y: 128 },
-  { id: "HALLWAY_2211", x: 231, y: 205 },
-  { id: "HALLWAY_2203", x: 146, y: 300 },
-  { id: "HALLWAY_EXIT2", x: 262, y: 300 },
-];
-
-const floorEdges: Edge[] = [
-  { from: "HALLWAY_EXIT1", to: "HALLWAY_2226" },
-  { from: "HALLWAY_2226", to: "HALLWAY_2225" },
-  { from: "HALLWAY_2225", to: "HALLWAY_2224" },
-  { from: "HALLWAY_2220", to: "HALLWAY_2211" },
-  { from: "HALLWAY_2203", to: "HALLWAY_EXIT2" },
-  { from: "EXIT 1", to: "HALLWAY_EXIT1" },
-  { from: "2226", to: "HALLWAY_2226" },
-  { from: "2225", to: "HALLWAY_2225" },
-  { from: "2224", to: "HALLWAY_2224" },
-  { from: "2220", to: "HALLWAY_2220" },
-  { from: "2215", to: "HALLWAY_2220" },
-  { from: "2211", to: "HALLWAY_2211" },
-  { from: "2207", to: "HALLWAY_2211" },
-  { from: "2217A", to: "HALLWAY_EXIT1" },
-  { from: "2217", to: "HALLWAY_EXIT1" },
-  { from: "2213", to: "HALLWAY_EXIT1" },
-  { from: "2221", to: "HALLWAY_2226" },
-  { from: "2216", to: "HALLWAY_2226" },
-  { from: "2203", to: "HALLWAY_2203" },
-  { from: "EXIT 2", to: "HALLWAY_EXIT2" },
-];
-
-
-function findShortestPath(nodes: Node[], hallwayNodes: Node[], edges: Edge[], fromId: string, toId: string): 
-Node[] {
-  if (fromId === toId) return [];
-  const allNodes = [...nodes, ...hallwayNodes];
-
-  const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
-  const adj = new Map<string, string[]>();
-
-  edges.forEach(({ from, to }) => {
-    if (!adj.has(from)) adj.set(from, []);
-    if (!adj.has(to)) adj.set(to, []);
-
-    adj.get(from)!.push(to);
-    adj.get(to)!.push(from);
-  });
-
-  const visited = new Set([fromId]);
-
-
-  const queue: { id: string; path: string[] }[] = [{ id: fromId, path: [fromId] }];
-
-  while (queue.length) {
-    const { id, path } = queue.shift()!;
-    for (const neighbour of adj.get(id) ?? []) {
-      if (neighbour === toId) {
-        return [...path, toId].map((nid) => nodeMap.get(nid)!).filter(Boolean);
-      }
-      
-      if (!visited.has(neighbour)) {
-        visited.add(neighbour);
-        queue.push({ id: neighbour, path: [...path, neighbour] });
-      }
-    }
-  }
-  return [];
-}
 
 const defaultFloor1CameraBubbles: CameraBubble[] = [
   { id: "cam1", x: 231, y: 108, count: 0 },
@@ -253,6 +189,12 @@ const getTrafficBubbleStyle = (count: number) => {
     fill: "rgba(244, 67, 54, 0.32)",
     glow: "rgba(244, 67, 54, 0.22)",
   };
+};
+
+const getTrafficLevel = (count: number) => {
+  if (count <= 3) return "low";
+  if (count <= 6) return "moderate";
+  return "heavy";
 };
 
 const getPanBounds = (scaleValue: number) => {
@@ -319,8 +261,134 @@ const getDistance = (
   return Math.sqrt(dx * dx + dy * dy);
 };
 
+const getMapDistance = (
+  a: { x: number; y: number },
+  b: { x: number; y: number }
+) => {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
+const distancePointToSegment = (
+  point: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number }
+) => {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+
+  if (dx === 0 && dy === 0) return getMapDistance(point, a);
+
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      ((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx * dx + dy * dy)
+    )
+  );
+
+  return getMapDistance(point, {
+    x: a.x + t * dx,
+    y: a.y + t * dy,
+  });
+};
+
+const getTrafficPenalty = (
+  a: AdminNodeMarker,
+  b: AdminNodeMarker,
+  bubbles: CameraBubble[]
+) => {
+  let penalty = 0;
+
+  bubbles.forEach((bubble) => {
+    const distance = distancePointToSegment(bubble, a, b);
+
+    if (distance < 70) {
+      penalty += bubble.count * 25;
+    }
+  });
+
+  return penalty;
+};
+
+const findRoute = (
+  startId: string,
+  endId: string,
+  adminNodes: AdminNodeMarker[],
+  cameraBubbles: CameraBubble[],
+  navMode: string
+) => {
+  const nodeMap = Object.fromEntries(adminNodes.map((node) => [node.id, node]));
+
+  if (!nodeMap[startId] || !nodeMap[endId]) return [];
+
+  const distances: Record<string, number> = {};
+  const previous: Record<string, string | null> = {};
+  const unvisited = new Set(adminNodes.map((node) => node.id));
+
+  adminNodes.forEach((node) => {
+    distances[node.id] = Infinity;
+    previous[node.id] = null;
+  });
+
+  distances[startId] = 0;
+
+  while (unvisited.size > 0) {
+    let current: string | null = null;
+
+    unvisited.forEach((id) => {
+      if (current === null || distances[id] < distances[current]) {
+        current = id;
+      }
+    });
+
+    if (current === null) break;
+    if (current === endId) break;
+
+    unvisited.delete(current);
+
+    ROUTE_EDGES.forEach((edge) => {
+      if (edge.from !== current && edge.to !== current) return;
+
+      const neighbor = edge.from === current ? edge.to : edge.from;
+      if (!unvisited.has(neighbor)) return;
+      if (!nodeMap[neighbor]) return;
+
+      const fromNode = nodeMap[current!];
+      const toNode = nodeMap[neighbor];
+
+      let weight = getMapDistance(fromNode, toNode);
+
+      if (navMode === "Fastest route") {
+        weight += getTrafficPenalty(fromNode, toNode, cameraBubbles);
+      }
+
+      const candidate = distances[current!] + weight;
+
+      if (candidate < distances[neighbor]) {
+        distances[neighbor] = candidate;
+        previous[neighbor] = current;
+      }
+    });
+  }
+
+  const path: AdminNodeMarker[] = [];
+  let cursor: string | null = endId;
+
+  while (cursor) {
+    if (!nodeMap[cursor]) return [];
+    path.unshift(nodeMap[cursor]);
+    cursor = previous[cursor];
+  }
+
+  return path[0]?.id === startId ? path : [];
+};
+
 export default function NavigationMap() {
   const { prefs, setPrefs, isGuest } = useContext(AuthUiContext);
+
+  const pulse = useRef(new Animated.Value(0)).current;
 
   const [currentFloor, setCurrentFloor] = useState<1 | 2>(1);
   const [floor1CameraBubbles, setFloor1CameraBubbles] = useState<CameraBubble[]>(
@@ -340,22 +408,62 @@ export default function NavigationMap() {
     defaultFloor2AdminNodes
   );
 
-  const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
+  const [userLocation, setUserLocation] =
+    useState<Location.LocationObject | null>(null);
   const [nearestNode, setNearestNode] = useState<AdminNodeMarker | null>(null);
+  const [destinationNode, setDestinationNode] =
+    useState<AdminNodeMarker | null>(null);
+  const [navigationActive, setNavigationActive] = useState(false);
 
-  const [userRoute, setuserRoute] = useState<userRoute>({
-    origin: null,
-    destination: null,
-    path: [],
-  });
+  const latestPrefsRef = useRef(prefs);
+  const prevTrafficRef = useRef<Record<string, number>>({});
+  const adminNodesRef = useRef<AdminNodeMarker[]>([]);
 
-  const nodes = currentFloor === 1 ? floorNodes : floor2Nodes;
+  useEffect(() => {
+    latestPrefsRef.current = prefs;
+  }, [prefs]);
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1400,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulse]);
+
+  const nodes = currentFloor === 1 ? floor1Nodes : floor2Nodes;
   const cameraBubbles =
     currentFloor === 1 ? floor1CameraBubbles : defaultFloor2CameraBubbles;
   const cameraMarkers =
     currentFloor === 1 ? floor1CameraMarkers : floor2CameraMarkers;
   const adminNodes =
     currentFloor === 1 ? floor1AdminNodes : floor2AdminNodes;
+
+  useEffect(() => {
+    adminNodesRef.current = adminNodes;
+  }, [adminNodes]);
+
+  const currentRoute =
+    nearestNode && destinationNode
+      ? findRoute(
+          nearestNode.id,
+          destinationNode.id,
+          adminNodes,
+          cameraBubbles,
+          prefs.navMode
+        )
+      : [];
 
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -368,21 +476,70 @@ export default function NavigationMap() {
   const pinchStartScale = useRef(1);
   const pinchStartDistance = useRef(0);
 
-  useEffect(() => {
-    const { origin, destination } = userRoute;
-    if (!origin || !destination) return;
-    const edges = floorEdges;
-    const hallwayNodes = floorHallwayNodes;
-    const path = findShortestPath(nodes, hallwayNodes, edges, origin.id, destination.id);
-    setuserRoute((p) => ({ ...p, path }));
-  }, [userRoute.origin, userRoute.destination, currentFloor]);
+  const resetView = () => {
+    currentTranslate.current = { x: 0, y: 0 };
+    currentScale.current = 1;
+
+    translateX.setValue(0);
+    translateY.setValue(0);
+    scale.setValue(1);
+  };
+
+  const clampCurrentPanToScale = (scaleValue: number) => {
+    const bounds = getPanBounds(scaleValue);
+
+    const clampedX = clamp(currentTranslate.current.x, bounds.minX, bounds.maxX);
+    const clampedY = clamp(currentTranslate.current.y, bounds.minY, bounds.maxY);
+
+    currentTranslate.current = { x: clampedX, y: clampedY };
+    translateX.setValue(clampedX);
+    translateY.setValue(clampedY);
+  };
+
+  const getTapMapPoint = (evt: any) => {
+    const localX = evt.nativeEvent.locationX;
+    const localY = evt.nativeEvent.locationY;
+
+    const unscaledX =
+      (localX - currentTranslate.current.x) / currentScale.current;
+    const unscaledY =
+      (localY - currentTranslate.current.y) / currentScale.current;
+
+    return {
+      x: -20 + (unscaledX / MAP_WIDTH) * 420,
+      y: -30 + (unscaledY / MAP_HEIGHT) * 420,
+    };
+  };
+
+  const handleMapTap = (evt: any) => {
+    const activeAdminNodes = adminNodesRef.current;
+
+    if (activeAdminNodes.length === 0) return;
+
+    const tapPoint = getTapMapPoint(evt);
+
+    let closest = activeAdminNodes[0];
+    let minDistance = getMapDistance(tapPoint, closest);
+
+    activeAdminNodes.forEach((node) => {
+      const distance = getMapDistance(tapPoint, node);
+
+      if (distance < minDistance) {
+        closest = node;
+        minDistance = distance;
+      }
+    });
+
+    setDestinationNode(closest);
+    setNavigationActive(false);
+  };
 
   useEffect(() => {
     const trafficQuery = query(collection(db, "pi_data"));
 
     const unsubscribe = onSnapshot(
       trafficQuery,
-      (snapshot) => {
+      async (snapshot) => {
         const nextCounts: Record<string, number> = {};
 
         snapshot.forEach((docSnap) => {
@@ -397,6 +554,40 @@ export default function NavigationMap() {
             nextCounts[cameraKey] = data.count;
           }
         });
+
+        if (latestPrefsRef.current.notifyHeavyTraffic) {
+          for (const camId in nextCounts) {
+            const previousCount = prevTrafficRef.current[camId] ?? 0;
+            const currentCount = nextCounts[camId];
+
+            const previousLevel = getTrafficLevel(previousCount);
+            const currentLevel = getTrafficLevel(currentCount);
+
+            if (previousLevel !== currentLevel) {
+              if (currentLevel === "moderate") {
+                await Notifications.scheduleNotificationAsync({
+                  content: {
+                    title: "Traffic Update",
+                    body: "Moderate traffic nearby",
+                  },
+                  trigger: null,
+                });
+              }
+
+              if (currentLevel === "heavy") {
+                await Notifications.scheduleNotificationAsync({
+                  content: {
+                    title: "Traffic Alert",
+                    body: "Heavy traffic nearby",
+                  },
+                  trigger: null,
+                });
+              }
+            }
+          }
+        }
+
+        prevTrafficRef.current = nextCounts;
 
         setFloor1CameraBubbles((prev) =>
           prev.map((bubble) => ({
@@ -436,7 +627,7 @@ export default function NavigationMap() {
       }
     );
 
-    const unsubfloorNodes = onSnapshot(
+    const unsubFloor1Nodes = onSnapshot(
       doc(db, "map_config", "floor1_nodes"),
       (snap) => {
         const data = snap.data() as MapConfigDoc<AdminNodeMarker> | undefined;
@@ -461,7 +652,7 @@ export default function NavigationMap() {
     return () => {
       unsubFloor1Cameras();
       unsubFloor2Cameras();
-      unsubfloorNodes();
+      unsubFloor1Nodes();
       unsubFloor2Nodes();
     };
   }, []);
@@ -545,39 +736,21 @@ export default function NavigationMap() {
     setNearestNode(closest);
   }, [userLocation, adminNodes]);
 
-  const resetView = () => {
-    currentTranslate.current = { x: 0, y: 0 };
-    currentScale.current = 1;
+  useEffect(() => {
+    if (!navigationActive) return;
+    if (!nearestNode || !destinationNode) return;
 
-    translateX.setValue(0);
-    translateY.setValue(0);
-    scale.setValue(1);
-  };
-
-  const clearPath = () =>
-    setuserRoute({ origin: null, destination: null, path: [] });
-
-  const handleNodePress = (node: Node) => {
-    setuserRoute((prev) => {
-      if (!prev.origin) return { ...prev, origin: node, path: [] };
-      if (!prev.destination) return { ...prev, destination: node };
-      return { origin: node, destination: null, path: [] };
-    });
-  };
-
-  const clampCurrentPanToScale = (scaleValue: number) => {
-    const bounds = getPanBounds(scaleValue);
-
-    const clampedX = clamp(currentTranslate.current.x, bounds.minX, bounds.maxX);
-    const clampedY = clamp(currentTranslate.current.y, bounds.minY, bounds.maxY);
-
-    currentTranslate.current = { x: clampedX, y: clampedY };
-    translateX.setValue(clampedX);
-    translateY.setValue(clampedY);
-  };
+    if (nearestNode.id === destinationNode.id) {
+      setDestinationNode(null);
+      setNavigationActive(false);
+    }
+  }, [nearestNode, destinationNode, navigationActive]);
 
   const panResponder = useRef(
     PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return (
           Math.abs(gestureState.dx) > 2 ||
@@ -637,13 +810,21 @@ export default function NavigationMap() {
         translateY.setValue(nextY);
       },
 
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (evt, gestureState) => {
+        const wasTap =
+          Math.abs(gestureState.dx) < 12 &&
+          Math.abs(gestureState.dy) < 12;
+
         pinchStartDistance.current = 0;
         pinchStartScale.current = currentScale.current;
         panStart.current = {
           x: currentTranslate.current.x,
           y: currentTranslate.current.y,
         };
+
+        if (wasTap) {
+          handleMapTap(evt);
+        }
       },
 
       onPanResponderTerminate: () => {
@@ -677,35 +858,6 @@ export default function NavigationMap() {
     );
   };
 
-  const renderShortestPath = () => {
-    const { path, origin, destination } = userRoute;
-
-    return (
-      <>
-        {path.length >= 2 &&
-          path.slice(0, -1).map((node, i) => {
-            const next = path[i + 1];
-            return (
-              <Line
-                key={`seg-${i}`}
-                x1={node.x}
-                y1={node.y}
-                x2={next.x}
-                y2={next.y}
-                stroke="#ffa600"
-                strokeWidth={3}
-                strokeLinecap="round"
-              />
-            );
-          })}
-        {origin && <Circle cx={origin.x} cy={origin.y} r={10} fill="#4ade8059" />}
-        {origin && <Circle cx={origin.x} cy={origin.y} r={5} fill="#4ade80" />}
-        {destination && <Circle cx={destination.x} cy={destination.y} r={10} fill="#4ade8059" />}
-        {destination && <Circle cx={destination.x} cy={destination.y} r={5} fill="#4ade80" />}
-      </>
-    );
-  };
-
   return (
     <View style={{ padding: 20 }}>
       <View
@@ -719,7 +871,6 @@ export default function NavigationMap() {
           onPress={() => {
             setCurrentFloor(1);
             resetView();
-            clearPath();
           }}
           style={{
             padding: 10,
@@ -737,7 +888,6 @@ export default function NavigationMap() {
             if (!prefs.enableFloorSwitching) return;
             setCurrentFloor(2);
             resetView();
-            clearPath();
           }}
           style={{
             padding: 10,
@@ -764,8 +914,27 @@ export default function NavigationMap() {
           position: "relative",
         }}
       >
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 10,
+            alignSelf: "center",
+            zIndex: 20,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: "white", fontSize: 13, fontWeight: "600" }}>
+            Tap anywhere to set destination!
+          </Text>
+        </View>
+
         {prefs.showLocationData && userLocation && (
           <View
+            pointerEvents="none"
             style={{
               position: "absolute",
               top: 10,
@@ -784,8 +953,20 @@ export default function NavigationMap() {
           </View>
         )}
 
-        <Animated.View
+        <View
           {...panResponder.panHandlers}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 80,
+            zIndex: 10,
+          }}
+        />
+
+        <Animated.View
+          pointerEvents="none"
           style={{
             width: MAP_WIDTH,
             height: MAP_HEIGHT,
@@ -794,10 +975,9 @@ export default function NavigationMap() {
         >
           <Svg viewBox="-20 -30 420 420" width={MAP_WIDTH} height={MAP_HEIGHT}>
             {renderHallways()}
-            {renderShortestPath()}
 
             {nodes.map((node) => (
-              <G key={node.id} onPress={() => handleNodePress(node)}>
+              <G key={node.id}>
                 <Rect
                   x={node.x - 20}
                   y={node.y - 20}
@@ -859,26 +1039,54 @@ export default function NavigationMap() {
                       ? 114
                       : 50
                   }
-                  fill={
-                    node.id === userRoute.origin?.id
-                      ? "#166534"
-                      : node.id === userRoute.destination?.id
-                      ? "#166534"
-                      : "#918f8f"
-                  }
+                  fill={node.id === "STAIRS" 
+                    ? "#219bde"
+                    : node .id === "ELEVATOR"
+                    ? "#f6b56f"
+                    : node.id === "EXIT"
+                    ? "#f6886f"
+                    :"#918f8f"}
                 />
                 <SvgText
-                  x={node.x}
-                  y={node.y}
+                  x={node.x+10}
+                  y={node.y-8}
                   textAnchor="middle"
                   fill="white"
-                  fontSize={10}
+                  fontSize={7}
                   fontWeight="bold"
                 >
                   {node.id}
                 </SvgText>
               </G>
             ))}
+
+            {currentRoute.length > 1 && (
+              <Polyline
+                points={currentRoute.map((node) => `${node.x},${node.y}`).join(" ")}
+                fill="none"
+                stroke={navigationActive ? "#22c55e" : "#3b82f6"}
+                strokeWidth={6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+
+            {destinationNode && (
+              <G>
+                <Circle
+                  cx={destinationNode.x}
+                  cy={destinationNode.y}
+                  r={12}
+                  fill="rgba(34,197,94,0.35)"
+                />
+                <Circle
+                  cx={destinationNode.x}
+                  cy={destinationNode.y}
+                  r={6}
+                  fill="#22c55e"
+                />
+              </G>
+            )}
 
             {prefs.showCams &&
               cameraMarkers.map((camera) => {
@@ -930,17 +1138,24 @@ export default function NavigationMap() {
 
             {nearestNode && (
               <G>
-                <Circle
+                <AnimatedCircle
                   cx={nearestNode.x}
                   cy={nearestNode.y}
-                  r={16}
-                  fill="rgba(59,130,246,0.35)"
+                  r={pulse.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [12, 70],
+                  })}
+                  fill="rgba(59,130,246,0.4)"
+                  opacity={pulse.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 0],
+                  })}
                 />
                 <Circle
                   cx={nearestNode.x}
                   cy={nearestNode.y}
-                  r={8}
-                  fill="#3b82f6"
+                  r={18}
+                  fill="rgba(59,130,246,0.5)"
                 />
               </G>
             )}
@@ -950,18 +1165,27 @@ export default function NavigationMap() {
 
               return (
                 <G key={camera.id}>
-                  <Circle
+                  <AnimatedCircle
                     cx={camera.x}
                     cy={camera.y}
-                    r={bubbleStyle.glowRadius}
+                    r={pulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [bubbleStyle.radius, bubbleStyle.glowRadius],
+                    })}
                     fill={bubbleStyle.glow}
+                    opacity={pulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 0],
+                    })}
                   />
+
                   <Circle
                     cx={camera.x}
                     cy={camera.y}
                     r={bubbleStyle.radius}
                     fill={bubbleStyle.fill}
                   />
+
                   <SvgText
                     x={camera.x}
                     y={camera.y + 5}
@@ -977,6 +1201,77 @@ export default function NavigationMap() {
             })}
           </Svg>
         </Animated.View>
+
+        {destinationNode && !navigationActive && (
+          <View
+            style={{
+              position: "absolute",
+              bottom: 14,
+              alignSelf: "center",
+              flexDirection: "row",
+              gap: 10,
+              zIndex: 999,
+              elevation: 999,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => {
+                setNavigationActive(true);
+              }}
+              style={{
+                backgroundColor: "#22c55e",
+                paddingHorizontal: 34,
+                paddingVertical: 12,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ color: "white", fontWeight: "800", fontSize: 16 }}>
+                Go
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setDestinationNode(null);
+                setNavigationActive(false);
+              }}
+              style={{
+                backgroundColor: "#ef4444",
+                paddingHorizontal: 28,
+                paddingVertical: 12,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ color: "white", fontWeight: "800", fontSize: 16 }}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {destinationNode && navigationActive && (
+          <TouchableOpacity
+            onPress={() => {
+              setDestinationNode(null);
+              setNavigationActive(false);
+            }}
+            style={{
+              position: "absolute",
+              bottom: 14,
+              alignSelf: "center",
+              backgroundColor: "#ef4444",
+              paddingHorizontal: 28,
+              paddingVertical: 12,
+              borderRadius: 999,
+              zIndex: 999,
+              elevation: 999,
+            }}
+          >
+            <Text style={{ color: "white", fontWeight: "800", fontSize: 16 }}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
