@@ -2,69 +2,21 @@ import React, { useContext } from "react";
 import { Text, View, StyleSheet } from "react-native";
 import { AuthUiContext } from "../_layout";
 import NavigationMap from "../components/navigationmap";
-import * as Location from "expo-location";
-import { useEffect } from "react";
-import { getAuth } from "firebase/auth";
-import { getDatabase, ref, set, serverTimestamp } from "firebase/database";
 
 export default function TheDash() {
   const { colors } = useContext(AuthUiContext);
 
-  useEffect(() => {
-    let subscription: Location.LocationSubscription | null = null;
-
-    (async () => {
-      try {
-        const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
-        if (fgStatus !== "granted") {
-          console.warn("Foreground location permission denied");
-          return;
-        }
-
-        await Location.requestBackgroundPermissionsAsync();
-
-        subscription = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, timeInterval: 3000 },
-          async (loc) => {
-            const { latitude, longitude, altitude, accuracy } = loc.coords;
-            const user = getAuth().currentUser;
-
-            if (!user) {
-              console.warn("No authenticated user — skipping location write");
-              return;
-            }
-
-            try {
-              const db = getDatabase();
-              const locationRef = ref(db, `userLocation/${user.uid}`);
-              await set(locationRef, {
-                latitude,
-                longitude,
-                altitude,
-                accuracy,
-                updatedAt: serverTimestamp(),
-              });
-              console.log("Location saved:", latitude, longitude);
-            } catch (err) {
-              console.error("Realtime Database write failed:", err);
-            }
-          }
-        );
-      } catch (err) {
-        console.error("Location setup failed:", err);
-      }
-    })();
-
-    return () => {
-      subscription?.remove();
-    };
-  }, []);
-
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <Text style={[styles.title, { color: colors.text }]}>
+      <Text
+        style={[
+          styles.title,
+          { color: colors.text }
+        ]}
+      >
         The Dash
       </Text>
+
       <View style={styles.mapContainer}>
         <NavigationMap />
       </View>
