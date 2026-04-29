@@ -74,10 +74,23 @@ type RouteEdge = {
 };
 
 const ROUTE_EDGES: RouteEdge[] = [
+  { from: "G", to: "J" },
+  { from: "J", to: "A" },
   { from: "A", to: "B" },
-  { from: "B", to: "C" },
-  { from: "C", to: "D" },
+
   { from: "B", to: "E" },
+  { from: "B", to: "H" },
+
+  { from: "H", to: "C" },
+
+  { from: "C", to: "K" },
+  { from: "C", to: "I" },
+
+  { from: "K", to: "L" },
+  { from: "L", to: "I" },
+
+  { from: "I", to: "D" },
+  { from: "D", to: "F" },
 ];
 
 const floor1Nodes: Node[] = [
@@ -1048,7 +1061,9 @@ export default function NavigationMap() {
                     :"#918f8f"}
                 />
                 <SvgText
-                  x={node.x+10}
+                  x={node.id === "2224" || node.id === "2222" || node.id === "2223"
+                  ? node.x-4
+                  : node.x+6}
                   y={node.y-8}
                   textAnchor="middle"
                   fill="white"
