@@ -119,7 +119,13 @@ export default function PreferencesScreen() {
         <Switch
           value={prefs.notificationsEnabled}
           onValueChange={(v) =>
-            setPrefs((p) => ({ ...p, notificationsEnabled: v }))
+            setPrefs((p) => ({
+              ...p,
+              notificationsEnabled: v,
+              notifyEmergencies: v ? p.notifyEmergencies : false,
+              notifyHeavyTraffic: v ? p.notifyHeavyTraffic : false,
+              notifyAccessibility: v ? p.notifyAccessibility : false,
+            }))
           }
         />
       </View>
@@ -317,7 +323,7 @@ export default function PreferencesScreen() {
               Navigation
             </Text>
 
-            {(["Auto", "Fastest route", "Shortest route"] as NavMode[]).map(
+            {(["Fastest route", "Shortest route"] as NavMode[]).map(
               (opt) => (
                 <TouchableOpacity
                   key={opt}

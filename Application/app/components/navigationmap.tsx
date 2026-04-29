@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -16,9 +17,12 @@ import Svg, {
   G,
   Line,
   Polygon,
+  Polyline,
   Rect,
   Text as SvgText,
 } from "react-native-svg";
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type Node = {
   id: string;
@@ -63,6 +67,18 @@ type MapConfigDoc<T> = {
   floor?: number;
   items?: T[];
 };
+
+type RouteEdge = {
+  from: string;
+  to: string;
+};
+
+const ROUTE_EDGES: RouteEdge[] = [
+  { from: "A", to: "B" },
+  { from: "B", to: "C" },
+  { from: "C", to: "D" },
+  { from: "B", to: "E" },
+];
 
 const floor1Nodes: Node[] = [
   { id: "2226", x: 82, y: 10 },
@@ -174,6 +190,12 @@ const getTrafficBubbleStyle = (count: number) => {
   };
 };
 
+const getTrafficLevel = (count: number) => {
+  if (count <= 3) return "low";
+  if (count <= 6) return "moderate";
+  return "heavy";
+};
+
 const getPanBounds = (scaleValue: number) => {
   const scaledWidth = MAP_WIDTH * scaleValue;
   const scaledHeight = MAP_HEIGHT * scaleValue;
@@ -238,8 +260,134 @@ const getDistance = (
   return Math.sqrt(dx * dx + dy * dy);
 };
 
+const getMapDistance = (
+  a: { x: number; y: number },
+  b: { x: number; y: number }
+) => {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
+const distancePointToSegment = (
+  point: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number }
+) => {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+
+  if (dx === 0 && dy === 0) return getMapDistance(point, a);
+
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      ((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx * dx + dy * dy)
+    )
+  );
+
+  return getMapDistance(point, {
+    x: a.x + t * dx,
+    y: a.y + t * dy,
+  });
+};
+
+const getTrafficPenalty = (
+  a: AdminNodeMarker,
+  b: AdminNodeMarker,
+  bubbles: CameraBubble[]
+) => {
+  let penalty = 0;
+
+  bubbles.forEach((bubble) => {
+    const distance = distancePointToSegment(bubble, a, b);
+
+    if (distance < 70) {
+      penalty += bubble.count * 25;
+    }
+  });
+
+  return penalty;
+};
+
+const findRoute = (
+  startId: string,
+  endId: string,
+  adminNodes: AdminNodeMarker[],
+  cameraBubbles: CameraBubble[],
+  navMode: string
+) => {
+  const nodeMap = Object.fromEntries(adminNodes.map((node) => [node.id, node]));
+
+  if (!nodeMap[startId] || !nodeMap[endId]) return [];
+
+  const distances: Record<string, number> = {};
+  const previous: Record<string, string | null> = {};
+  const unvisited = new Set(adminNodes.map((node) => node.id));
+
+  adminNodes.forEach((node) => {
+    distances[node.id] = Infinity;
+    previous[node.id] = null;
+  });
+
+  distances[startId] = 0;
+
+  while (unvisited.size > 0) {
+    let current: string | null = null;
+
+    unvisited.forEach((id) => {
+      if (current === null || distances[id] < distances[current]) {
+        current = id;
+      }
+    });
+
+    if (current === null) break;
+    if (current === endId) break;
+
+    unvisited.delete(current);
+
+    ROUTE_EDGES.forEach((edge) => {
+      if (edge.from !== current && edge.to !== current) return;
+
+      const neighbor = edge.from === current ? edge.to : edge.from;
+      if (!unvisited.has(neighbor)) return;
+      if (!nodeMap[neighbor]) return;
+
+      const fromNode = nodeMap[current!];
+      const toNode = nodeMap[neighbor];
+
+      let weight = getMapDistance(fromNode, toNode);
+
+      if (navMode === "Fastest route") {
+        weight += getTrafficPenalty(fromNode, toNode, cameraBubbles);
+      }
+
+      const candidate = distances[current!] + weight;
+
+      if (candidate < distances[neighbor]) {
+        distances[neighbor] = candidate;
+        previous[neighbor] = current;
+      }
+    });
+  }
+
+  const path: AdminNodeMarker[] = [];
+  let cursor: string | null = endId;
+
+  while (cursor) {
+    if (!nodeMap[cursor]) return [];
+    path.unshift(nodeMap[cursor]);
+    cursor = previous[cursor];
+  }
+
+  return path[0]?.id === startId ? path : [];
+};
+
 export default function NavigationMap() {
   const { prefs, setPrefs, isGuest } = useContext(AuthUiContext);
+
+  const pulse = useRef(new Animated.Value(0)).current;
 
   const [currentFloor, setCurrentFloor] = useState<1 | 2>(1);
   const [floor1CameraBubbles, setFloor1CameraBubbles] = useState<CameraBubble[]>(
@@ -259,8 +407,39 @@ export default function NavigationMap() {
     defaultFloor2AdminNodes
   );
 
-  const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
+  const [userLocation, setUserLocation] =
+    useState<Location.LocationObject | null>(null);
   const [nearestNode, setNearestNode] = useState<AdminNodeMarker | null>(null);
+  const [destinationNode, setDestinationNode] =
+    useState<AdminNodeMarker | null>(null);
+  const [navigationActive, setNavigationActive] = useState(false);
+
+  const latestPrefsRef = useRef(prefs);
+  const prevTrafficRef = useRef<Record<string, number>>({});
+  const adminNodesRef = useRef<AdminNodeMarker[]>([]);
+
+  useEffect(() => {
+    latestPrefsRef.current = prefs;
+  }, [prefs]);
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1400,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulse]);
 
   const nodes = currentFloor === 1 ? floor1Nodes : floor2Nodes;
   const cameraBubbles =
@@ -269,6 +448,21 @@ export default function NavigationMap() {
     currentFloor === 1 ? floor1CameraMarkers : floor2CameraMarkers;
   const adminNodes =
     currentFloor === 1 ? floor1AdminNodes : floor2AdminNodes;
+
+  useEffect(() => {
+    adminNodesRef.current = adminNodes;
+  }, [adminNodes]);
+
+  const currentRoute =
+    nearestNode && destinationNode
+      ? findRoute(
+          nearestNode.id,
+          destinationNode.id,
+          adminNodes,
+          cameraBubbles,
+          prefs.navMode
+        )
+      : [];
 
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -281,12 +475,70 @@ export default function NavigationMap() {
   const pinchStartScale = useRef(1);
   const pinchStartDistance = useRef(0);
 
+  const resetView = () => {
+    currentTranslate.current = { x: 0, y: 0 };
+    currentScale.current = 1;
+
+    translateX.setValue(0);
+    translateY.setValue(0);
+    scale.setValue(1);
+  };
+
+  const clampCurrentPanToScale = (scaleValue: number) => {
+    const bounds = getPanBounds(scaleValue);
+
+    const clampedX = clamp(currentTranslate.current.x, bounds.minX, bounds.maxX);
+    const clampedY = clamp(currentTranslate.current.y, bounds.minY, bounds.maxY);
+
+    currentTranslate.current = { x: clampedX, y: clampedY };
+    translateX.setValue(clampedX);
+    translateY.setValue(clampedY);
+  };
+
+  const getTapMapPoint = (evt: any) => {
+    const localX = evt.nativeEvent.locationX;
+    const localY = evt.nativeEvent.locationY;
+
+    const unscaledX =
+      (localX - currentTranslate.current.x) / currentScale.current;
+    const unscaledY =
+      (localY - currentTranslate.current.y) / currentScale.current;
+
+    return {
+      x: -20 + (unscaledX / MAP_WIDTH) * 420,
+      y: -30 + (unscaledY / MAP_HEIGHT) * 420,
+    };
+  };
+
+  const handleMapTap = (evt: any) => {
+    const activeAdminNodes = adminNodesRef.current;
+
+    if (activeAdminNodes.length === 0) return;
+
+    const tapPoint = getTapMapPoint(evt);
+
+    let closest = activeAdminNodes[0];
+    let minDistance = getMapDistance(tapPoint, closest);
+
+    activeAdminNodes.forEach((node) => {
+      const distance = getMapDistance(tapPoint, node);
+
+      if (distance < minDistance) {
+        closest = node;
+        minDistance = distance;
+      }
+    });
+
+    setDestinationNode(closest);
+    setNavigationActive(false);
+  };
+
   useEffect(() => {
     const trafficQuery = query(collection(db, "pi_data"));
 
     const unsubscribe = onSnapshot(
       trafficQuery,
-      (snapshot) => {
+      async (snapshot) => {
         const nextCounts: Record<string, number> = {};
 
         snapshot.forEach((docSnap) => {
@@ -301,6 +553,40 @@ export default function NavigationMap() {
             nextCounts[cameraKey] = data.count;
           }
         });
+
+        if (latestPrefsRef.current.notifyHeavyTraffic) {
+          for (const camId in nextCounts) {
+            const previousCount = prevTrafficRef.current[camId] ?? 0;
+            const currentCount = nextCounts[camId];
+
+            const previousLevel = getTrafficLevel(previousCount);
+            const currentLevel = getTrafficLevel(currentCount);
+
+            if (previousLevel !== currentLevel) {
+              if (currentLevel === "moderate") {
+                await Notifications.scheduleNotificationAsync({
+                  content: {
+                    title: "Traffic Update",
+                    body: "Moderate traffic nearby",
+                  },
+                  trigger: null,
+                });
+              }
+
+              if (currentLevel === "heavy") {
+                await Notifications.scheduleNotificationAsync({
+                  content: {
+                    title: "Traffic Alert",
+                    body: "Heavy traffic nearby",
+                  },
+                  trigger: null,
+                });
+              }
+            }
+          }
+        }
+
+        prevTrafficRef.current = nextCounts;
 
         setFloor1CameraBubbles((prev) =>
           prev.map((bubble) => ({
@@ -449,28 +735,21 @@ export default function NavigationMap() {
     setNearestNode(closest);
   }, [userLocation, adminNodes]);
 
-  const resetView = () => {
-    currentTranslate.current = { x: 0, y: 0 };
-    currentScale.current = 1;
+  useEffect(() => {
+    if (!navigationActive) return;
+    if (!nearestNode || !destinationNode) return;
 
-    translateX.setValue(0);
-    translateY.setValue(0);
-    scale.setValue(1);
-  };
-
-  const clampCurrentPanToScale = (scaleValue: number) => {
-    const bounds = getPanBounds(scaleValue);
-
-    const clampedX = clamp(currentTranslate.current.x, bounds.minX, bounds.maxX);
-    const clampedY = clamp(currentTranslate.current.y, bounds.minY, bounds.maxY);
-
-    currentTranslate.current = { x: clampedX, y: clampedY };
-    translateX.setValue(clampedX);
-    translateY.setValue(clampedY);
-  };
+    if (nearestNode.id === destinationNode.id) {
+      setDestinationNode(null);
+      setNavigationActive(false);
+    }
+  }, [nearestNode, destinationNode, navigationActive]);
 
   const panResponder = useRef(
     PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return (
           Math.abs(gestureState.dx) > 2 ||
@@ -530,13 +809,21 @@ export default function NavigationMap() {
         translateY.setValue(nextY);
       },
 
-      onPanResponderRelease: () => {
+      onPanResponderRelease: (evt, gestureState) => {
+        const wasTap =
+          Math.abs(gestureState.dx) < 12 &&
+          Math.abs(gestureState.dy) < 12;
+
         pinchStartDistance.current = 0;
         pinchStartScale.current = currentScale.current;
         panStart.current = {
           x: currentTranslate.current.x,
           y: currentTranslate.current.y,
         };
+
+        if (wasTap) {
+          handleMapTap(evt);
+        }
       },
 
       onPanResponderTerminate: () => {
@@ -626,8 +913,27 @@ export default function NavigationMap() {
           position: "relative",
         }}
       >
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 10,
+            alignSelf: "center",
+            zIndex: 20,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: "white", fontSize: 13, fontWeight: "600" }}>
+            Tap anywhere to set destination!
+          </Text>
+        </View>
+
         {prefs.showLocationData && userLocation && (
           <View
+            pointerEvents="none"
             style={{
               position: "absolute",
               top: 10,
@@ -646,8 +952,20 @@ export default function NavigationMap() {
           </View>
         )}
 
-        <Animated.View
+        <View
           {...panResponder.panHandlers}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 80,
+            zIndex: 10,
+          }}
+        />
+
+        <Animated.View
+          pointerEvents="none"
           style={{
             width: MAP_WIDTH,
             height: MAP_HEIGHT,
@@ -735,6 +1053,34 @@ export default function NavigationMap() {
               </G>
             ))}
 
+            {currentRoute.length > 1 && (
+              <Polyline
+                points={currentRoute.map((node) => `${node.x},${node.y}`).join(" ")}
+                fill="none"
+                stroke={navigationActive ? "#22c55e" : "#3b82f6"}
+                strokeWidth={6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+
+            {destinationNode && (
+              <G>
+                <Circle
+                  cx={destinationNode.x}
+                  cy={destinationNode.y}
+                  r={12}
+                  fill="rgba(34,197,94,0.35)"
+                />
+                <Circle
+                  cx={destinationNode.x}
+                  cy={destinationNode.y}
+                  r={6}
+                  fill="#22c55e"
+                />
+              </G>
+            )}
+
             {prefs.showCams &&
               cameraMarkers.map((camera) => {
                 const arrow = getArrowPoints(camera.x, camera.y, camera.angle);
@@ -785,17 +1131,24 @@ export default function NavigationMap() {
 
             {nearestNode && (
               <G>
-                <Circle
+                <AnimatedCircle
                   cx={nearestNode.x}
                   cy={nearestNode.y}
-                  r={16}
-                  fill="rgba(59,130,246,0.35)"
+                  r={pulse.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [12, 70],
+                  })}
+                  fill="rgba(59,130,246,0.4)"
+                  opacity={pulse.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 0],
+                  })}
                 />
                 <Circle
                   cx={nearestNode.x}
                   cy={nearestNode.y}
-                  r={8}
-                  fill="#3b82f6"
+                  r={18}
+                  fill="rgba(59,130,246,0.5)"
                 />
               </G>
             )}
@@ -805,18 +1158,27 @@ export default function NavigationMap() {
 
               return (
                 <G key={camera.id}>
-                  <Circle
+                  <AnimatedCircle
                     cx={camera.x}
                     cy={camera.y}
-                    r={bubbleStyle.glowRadius}
+                    r={pulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [bubbleStyle.radius, bubbleStyle.glowRadius],
+                    })}
                     fill={bubbleStyle.glow}
+                    opacity={pulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 0],
+                    })}
                   />
+
                   <Circle
                     cx={camera.x}
                     cy={camera.y}
                     r={bubbleStyle.radius}
                     fill={bubbleStyle.fill}
                   />
+
                   <SvgText
                     x={camera.x}
                     y={camera.y + 5}
@@ -832,6 +1194,77 @@ export default function NavigationMap() {
             })}
           </Svg>
         </Animated.View>
+
+        {destinationNode && !navigationActive && (
+          <View
+            style={{
+              position: "absolute",
+              bottom: 14,
+              alignSelf: "center",
+              flexDirection: "row",
+              gap: 10,
+              zIndex: 999,
+              elevation: 999,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => {
+                setNavigationActive(true);
+              }}
+              style={{
+                backgroundColor: "#22c55e",
+                paddingHorizontal: 34,
+                paddingVertical: 12,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ color: "white", fontWeight: "800", fontSize: 16 }}>
+                Go
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setDestinationNode(null);
+                setNavigationActive(false);
+              }}
+              style={{
+                backgroundColor: "#ef4444",
+                paddingHorizontal: 28,
+                paddingVertical: 12,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ color: "white", fontWeight: "800", fontSize: 16 }}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {destinationNode && navigationActive && (
+          <TouchableOpacity
+            onPress={() => {
+              setDestinationNode(null);
+              setNavigationActive(false);
+            }}
+            style={{
+              position: "absolute",
+              bottom: 14,
+              alignSelf: "center",
+              backgroundColor: "#ef4444",
+              paddingHorizontal: 28,
+              paddingVertical: 12,
+              borderRadius: 999,
+              zIndex: 999,
+              elevation: 999,
+            }}
+          >
+            <Text style={{ color: "white", fontWeight: "800", fontSize: 16 }}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );

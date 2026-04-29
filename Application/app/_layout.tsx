@@ -6,7 +6,7 @@ import React, { createContext, useEffect, useMemo, useState } from "react";
 import { auth } from "../firebaseConfig";
 
 export type ThemeMode = "dark" | "light";
-export type NavMode = "Auto" | "Fastest route" | "Shortest route";
+export type NavMode = "Fastest route" | "Shortest route";
 
 export type ThemeColors = {
   bg: string;
@@ -61,7 +61,7 @@ export type PreferencesState = {
 };
 
 export const DEFAULT_PREFS: PreferencesState = {
-  navMode: "Auto",
+  navMode: "Fastest route",
 
   notificationsEnabled: false,
   notifyEmergencies: true,
