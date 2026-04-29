@@ -86,7 +86,7 @@ const floor1Nodes: Node[] = [
   { id: "2224", x: 211, y: 10 },
   { id: "2223", x: 211, y: 62 },
   { id: "2222", x: 179, y: 62 },
-  { id: "EXIT 1", x: 30, y: 10 },
+  { id: "STAIRS", x: 30, y: 10 },
   { id: "2217A", x: 30, y: 62 },
   { id: "2217", x: 30, y: 114 },
   { id: "2221", x: 102, y: 62 },
@@ -97,11 +97,12 @@ const floor1Nodes: Node[] = [
   { id: "2211", x: 179, y: 205 },
   { id: "2210", x: 82, y: 248 },
   { id: "2207", x: 260, y: 196 },
-  { id: "EXIT 2", x: 262, y: 330 },
+  { id: "ELEVATOR", x: 262, y: 330 },
   { id: "2204", x: 82, y: 282 },
   { id: "2203", x: 146, y: 330 },
   { id: "2202", x: 30, y: 248 },
   { id: "2201", x: 30, y: 330 },
+  { id: "EXIT", x: 256, y: 120 },
 ];
 
 const floor2Nodes: Node[] = [
@@ -1038,14 +1039,20 @@ export default function NavigationMap() {
                       ? 114
                       : 50
                   }
-                  fill="#918f8f"
+                  fill={node.id === "STAIRS" 
+                    ? "#219bde"
+                    : node .id === "ELEVATOR"
+                    ? "#f6b56f"
+                    : node.id === "EXIT"
+                    ? "#f6886f"
+                    :"#918f8f"}
                 />
                 <SvgText
-                  x={node.x}
-                  y={node.y}
+                  x={node.x+10}
+                  y={node.y-8}
                   textAnchor="middle"
                   fill="white"
-                  fontSize={10}
+                  fontSize={7}
                   fontWeight="bold"
                 >
                   {node.id}
