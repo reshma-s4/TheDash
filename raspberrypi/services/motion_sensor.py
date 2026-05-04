@@ -1,14 +1,16 @@
-'''
-Handles the intiliazation and functions for a 
-PIR sensor installed on the Raspberry Pi
-'''
+# Handles the initialization and functions for a 
+# PIR sensor installed on the Raspberry Pi
 
 import time
 import threading
 from gpiozero import MotionSensor
 from services.pi_camera import capture_image
-from routes.main import save_image
+from services.image_handler import save_image
 
+# Change cooldown as desired
+# Ensure physical cooldown potentiometer on 
+# PIR sensor is bottomed out, otherwise coflicts can
+# occur between physical and software enabled cooldown
 class MotionSensorService:
     def __init__(self, pir_pin=4, camera_id="cam0", cooldown=5):
         self.pir = MotionSensor(pir_pin)

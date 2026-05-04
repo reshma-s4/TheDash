@@ -1,7 +1,14 @@
+<!-- 
+ This was created as a way to look at all the outputs of 
+ the cameras as they captured a frame. Also contains a status
+ page to verify that node devices (ESP32-CAM) are connected to 
+ the Raspberry Pi.
+ -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta http-equiv="refresh" content="5">
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Camera Feed Dashboard</title>
@@ -19,11 +26,15 @@
             {% else %}
                 <p>No image yet</p>
             {% endif %}
+            <script>
+                setTimeout(() => location.reload(), 5000);
+            </script>
         </div>
         {% endfor %}
         <div class="link">
             <a href="/status">View Status of All Devices</a>
         </div>
     </div>
+
 </body>
 </html>

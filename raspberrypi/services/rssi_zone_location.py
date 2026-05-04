@@ -1,3 +1,12 @@
+# This module is currently NOT being used in our 
+# current project implementations due to constrains with 
+# network connectivity.
+# wlan0 set up as an access point
+# wlan1 set up to connect to network in order to push out data
+# to firebase. If ethernet connection is possible, then wlan1
+# can be used to monitor rssi signals of connected devices.
+# RSSI signals for controllers not dependent on this module.
+
 import time
 import re
 import subprocess
@@ -46,6 +55,7 @@ def classify_subzone(rssi):
         return "far"
     
 # Used to classify zone based on camera ID and RSSI value.
+# Not curently being used in the project but is there if it needs implementation
 def classify_zone(cam_id, rssi):
     subzone = classify_subzone(rssi)
     
@@ -118,7 +128,9 @@ def get_subzone_occupancy(cam_id):
             
     return occupancy
         
-# Testing function
+# Main function here only to test that 
+# devices are connecting to adapter and 
+# rssi is able to be retrieved
 def main():
     while True:
         connected_devices = get_all_rssi()

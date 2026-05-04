@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 import time
 
-from services.image_handler import UPLOAD_PATH
+from services.image_handler import UPLOAD_PATH, save_image
 
 LATEST_STATUS_DEVICE = {} 
 OFFLINE_THRESHOLD_SECONDS = 15

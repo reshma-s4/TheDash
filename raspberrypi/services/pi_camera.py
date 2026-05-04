@@ -6,6 +6,8 @@ import threading
 
 lock = threading.Lock()
 
+# Adjust these settings based on position and 
+# orientation of camera module on Raspberry Pi
 cam = Picamera2()
 transform = Transform(vflip=True, hflip=True)
 configs = cam.create_still_configuration(main={"size": (1280, 720)}, transform=transform)

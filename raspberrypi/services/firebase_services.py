@@ -27,16 +27,31 @@ def get_db():
         init_firebase()
     return _client
 
-def add_data(camera_id, rssi_value, people_count, confidence_scores, time_of_capture):
+def add_data(camera_id, rssi_value, people_count, confidence_scores, time_of_capture, floor=1):
     db = get_db()
     
     data = {
-        "capture_device": camera_id,
+        "cameraID": camera_id,
         "rssi": rssi_value,
-        "time_of_capture": time_of_capture,
-        "people_count": people_count,
-        "confidence_scores": confidence_scores
+        "timestamp": time_of_capture,
+        "count": people_count,
+        "confidence_scores": confidence_scores,
+        "floor": floor
     }
 
     db.collection("pi_data").add(data)
+    
+def upsert_camera_data(camera_id, rssi_value, people_count, confidence_scores, time_of_capture, floor=1):
+    db = get_db()
+    
+    data = {
+        "cameraID": camera_id,
+        "rssi": rssi_value,
+        "timestamp": time_of_capture,
+        "count": people_count,
+        "confidence_scores": confidence_scores,
+        "floor": floor
+    }
+
+    db.collection("pi_data").document(camera_id).set(data, merge=True)
 

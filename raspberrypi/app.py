@@ -1,5 +1,5 @@
 from flask import Flask
-from routes.main import main
+from routes.routes import main
 from services.motion_sensor import MotionSensorService
 import services.firebase_services as fb
 

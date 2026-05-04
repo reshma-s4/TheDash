@@ -1,3 +1,11 @@
+# YOLOv8 TFLite object detection service.
+# This version isn't currently being used for our project. 
+# It was an initial attempt to run YOLOv8 in TFLite on the Raspberry Pi, 
+# but we switched to a more lightweight NCNN model for better performance and compatibility.
+# However, this code is kept for reference and potential future use if we want to run more 
+# powerful models on the Pi or other platforms.
+
+
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Tuple
@@ -23,6 +31,7 @@ COCO80 = [
     "dining table","toilet","tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven",
     "toaster","sink","refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"
 ]
+
 
 def letterbox_image(img: np.ndarray, new_size: int) -> Tuple[np.ndarray, float, int, int]:
     """
@@ -51,6 +60,7 @@ def letterbox_image(img: np.ndarray, new_size: int) -> Tuple[np.ndarray, float, 
     canvas[pad_y:pad_y + new_h, pad_x:pad_x + new_w] = resized
 
     return canvas, scale, pad_x, pad_y
+
 
 def _iou_xyxy(a, b) -> float:
     ax1, ay1, ax2, ay2 = a
