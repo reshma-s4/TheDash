@@ -10,7 +10,8 @@ OFFLINE_THRESHOLD_SECONDS = 15
 
 main = Blueprint('main', __name__)
 
-# Displays the latest image from each camera on the homepage, along with their proximity labels
+# Displays the latest image from each camera on the 
+# homepage, along with their proximity labels
 @main.route("/")
 def home():
     cameras = {}
@@ -34,6 +35,8 @@ def home():
 
     return render_template("index.html", cameras=cameras, time_now=datetime.now().timestamp())
 
+# Used to view status of connected edge devices, used to 
+# check functionality and relative distance to Pi 
 @main.route("/status", methods=["POST"])
 def status():
     data = request.get_json(silent=True) or {}
@@ -82,7 +85,7 @@ def status_page():
         offline_after_secs=OFFLINE_THRESHOLD_SECONDS,
         time_now=datetime.now().timestamp()
     )
-
+# Receives capturead frames from edge devices
 @main.route("/upload", methods=["POST"])
 def upload():
     if not request.data or len(request.data) == 0:
